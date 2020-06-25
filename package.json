@@ -1,0 +1,21 @@
+{
+  "name": "reddit-scaling-demo",
+  "version": "1.0.0",
+  "description": "Reddit scaling demo",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "array-unique": "0.3.2",
+    "chai": "4.2.0",
+    "chai-as-promised": "7.1.1",
+    "chai-bn": "0.1.1",
+    "dotenv": "8.2.0",
+    "envfile": "6.8.0",
+    "solc": "0.5.17",
+    "web3": "1.2.9"
+  }
+}
