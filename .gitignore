@@ -1,4 +1,4 @@
-users.csv
+users*.csv
 node_modules
-tmp.txt
+tmp.*
 .env
