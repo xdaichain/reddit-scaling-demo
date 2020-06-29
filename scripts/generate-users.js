@@ -1,14 +1,14 @@
 require('dotenv').config();
 
 const assert = require('assert');
-const unique = require('array-unique');
+const constants = require('./constants');
 const Web3 = require('web3');
 const fs = require('fs');
-const web3 = new Web3();
+const web3 = new Web3(process.env.RPC);
 
 main();
 
-function main() {
+async function main() {
   const subreddit = process.env.SUBREDDIT;
   const karmaSourcePrivateKey = process.env.KARMA_SOURCE_KEY;
 
@@ -16,22 +16,38 @@ function main() {
   assert(subreddit.length != 0);
   assert(!!karmaSourcePrivateKey);
 
-  const totalAddresses = 100000;
-  const renews = 25000; // how many calls of `renew`
-  const availablePoints = 25000000; // initially available points
-  //const membershipPrice = 100;
+  const totalAddresses = constants.TOTAL_USERS;
+  const renews = constants.TOTAL_SUBSCRIBE_TRANSACTIONS; // how many calls of `renew`
+  const availablePoints = 50000000 / 2; // initially available points
+  const chainId = await web3.eth.getChainId();
 
   console.log('Generate unique addresses...');
+  const tmpFilepath = `${__dirname}/tmp.users.${chainId}`;
+  let addressGenerated = {};
   let lines = [];
-  for (let i = 0; i < totalAddresses; i++) {
+  try {
+    lines = fs.readFileSync(tmpFilepath, 'utf8').split('\n');
+    for (let i = 0; i < lines.length; i++) {
+      const address = lines[i].split(',')[0];
+      addressGenerated[address] = true;
+    }
+  } catch(e) {
+  }
+  while (lines.length < totalAddresses) {
     const acc = web3.eth.accounts.create();
     const line = `${acc.address},${acc.privateKey}`;
-    lines.push(line);
-    console.log(`  Progress: ${i+1}/${totalAddresses}`);
+    const nonce = await web3.eth.getTransactionCount(acc.address);
+    if (nonce === 0 && !addressGenerated.hasOwnProperty(acc.address)) {
+      lines.push(line);
+      addressGenerated[acc.address] = true;
+      console.log(`  Progress: ${lines.length}/${totalAddresses}`);
+    }
+    if (lines.length % (totalAddresses / 1000) === 0) {
+      fs.writeFileSync(tmpFilepath, lines.join('\n'), 'utf8');
+    }
   }
-  console.log('  Check for uniqueness...');
-  assert(unique(lines).length === totalAddresses);
-  console.log('  Done');
+  delete addressGenerated;
+  fs.unlinkSync(tmpFilepath);
 
   console.log('Add signatures and random karma for `claim`...');
   let totalKarma = 0;

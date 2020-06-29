@@ -1,6 +1,7 @@
 require('dotenv').config();
 
 const assert = require('assert');
+const constants = require('./constants');
 const Web3 = require('web3');
 const fs = require('fs');
 const web3 = new Web3(process.env.RPC);
@@ -27,8 +28,8 @@ async function main() {
   const args = process.argv.slice(2);
   const loadType = args[0];
 
-  if (['claim', 'subscribe', 'renew', 'transfer'].indexOf(loadType) < 0) {
-    console.error('ERROR: Invalid operation type. Can be one of: claim, subscribe, renew, transfer');
+  if (['claim', 'subscribe', 'burn', 'transfer', 'renew'].indexOf(loadType) < 0) {
+    console.error('ERROR: Invalid operation type. Can be one of: claim, subscribe, burn, transfer, renew');
     process.exit(1);
   }
 
@@ -51,26 +52,54 @@ async function claim() {
 
 async function subscribe() {
   console.log('Performing `subscribe` transactions...');
+  const maxSubscribeOperations = constants.TOTAL_SUBSCRIBE_TRANSACTIONS;
 
   startTimestamp = process.hrtime();
-  for (let i = 0; i < users.length; i++) {
+  for (let i = 0; i < maxSubscribeOperations; i++) {
     const { subscribeTx, claimed, subscribed } = parseUser(users[i].split(','));
 
     if (!claimed) continue; // skip user who didn't claim their tokens
     if (!subscribed) txs.push({ i, tx: subscribeTx });
-    if (await _sendTXs(i, users.length, 'subscribe')) break;
+    if (await _sendTXs(i, maxSubscribeOperations, 'subscribe')) break;
+  }
+}
+
+async function burn() {
+  console.log('Performing `burn` transactions...');
+  const maxBurnOperations = constants.TOTAL_BURN_TRANSACTIONS;
+
+  startTimestamp = process.hrtime();
+  for (let i = 0; i < maxBurnOperations; i++) {
+    const { burnTx, claimed, burned } = parseUser(users[i].split(','));
+
+    if (!claimed) continue; // skip user who didn't claim their tokens
+    if (!burned) txs.push({ i, tx: burnTx });
+    if (await _sendTXs(i, maxBurnOperations, 'burn')) break;
+  }
+}
+
+async function transfer() {
+  console.log('Performing `transfer` transactions...');
+
+  startTimestamp = process.hrtime();
+  for (let i = 0; i < users.length; i++) {
+    const { transferTx, claimed, transferred } = parseUser(users[i].split(','));
+
+    if (!claimed) continue; // skip user who didn't claim their tokens
+    if (!transferred) txs.push({ i, tx: transferTx });
+    if (await _sendTXs(i, users.length, 'transfer')) break;
   }
 }
 
 async function renew() {
   console.log('Performing `renew` transactions...');
-  const maxRenewUsers = 25000;
+  const maxRenewOperations = constants.TOTAL_SUBSCRIBE_TRANSACTIONS;
   const chainId = await web3.eth.getChainId();
   let nonce = await web3.eth.getTransactionCount(process.env.KARMA_SOURCE);
 
-  // Prepare all transactions
+  // Prepare all `renew` transactions
   let preparedTxs = {};
-  for (let i = 0; i < maxRenewUsers; i++) {
+  for (let i = 0; i < maxRenewOperations; i++) {
     const { account, subscribed, renewed } = parseUser(users[i].split(','));
 
     if (!subscribed) continue; // skip user who didn't subscribe
@@ -92,14 +121,14 @@ async function renew() {
 
   // Perform prepared transactions
   startTimestamp = process.hrtime();
-  for (let i = 0; i < maxRenewUsers; i++) {
+  for (let i = 0; i < maxRenewOperations; i++) {
     const { account, subscribed, renewed } = parseUser(users[i].split(','));
 
     if (i in preparedTxs) {
       txs.push({ i, tx: preparedTxs[i] });
       delete preparedTxs[i];
     }
-    if (await _sendTXs(i, maxRenewUsers, 'renew')) {
+    if (await _sendTXs(i, maxRenewOperations, 'renew')) {
       break;
     }
   }
@@ -118,22 +147,34 @@ function parseUser(user) {
     signature: user[3],
     claimTx: user[4],
     subscribeTx: user[5],
-    claimed: user[6] === 'Y',
-    subscribed: user[7] === 'Y',
-    renewed: user[8] === 'Y'
+    burnTx: user[6],
+    transferTx: user[7],
+    claimed: user[8] === 'Y',
+    subscribed: user[9] === 'Y',
+    burned: user[10] === 'Y',
+    transferred: user[11] === 'Y',
+    renewed: user[12] === 'Y'
   }
 }
 
 function setUserClaimed(userIndex, claimed) {
-  _setUserBooleanFlag(userIndex, claimed, 6);
+  _setUserBooleanFlag(userIndex, claimed, 8);
 }
 
 function setUserSubscribed(userIndex, subscribed) {
-  _setUserBooleanFlag(userIndex, subscribed, 7);
+  _setUserBooleanFlag(userIndex, subscribed, 9);
+}
+
+function setUserBurned(userIndex, burned) {
+  _setUserBooleanFlag(userIndex, burned, 10);
+}
+
+function setUserTransferred(userIndex, transferred) {
+  _setUserBooleanFlag(userIndex, transferred, 11);
 }
 
 function setUserRenewed(userIndex, renewed) {
-  _setUserBooleanFlag(userIndex, renewed, 8);
+  _setUserBooleanFlag(userIndex, renewed, 12);
 }
 
 function _setUserBooleanFlag(userIndex, flag, columnIndex) {
@@ -145,7 +186,7 @@ function _setUserBooleanFlag(userIndex, flag, columnIndex) {
 async function _sendTXs(i, maxIterations, txType) {
   if (txs.length >= onePassTxLimit || i == maxIterations - 1) {
     // Send transactions and wait them to be mined
-    console.log(`  Sending ${txs.length} ${txType} transactions...`);
+    console.log(`  Sending ${txs.length} '${txType}' transactions...`);
     let txPromises = [];
     for (let t = 0; t < txs.length; t++) {
       txPromises.push(web3.eth.sendSignedTransaction(txs[t].tx));
@@ -157,6 +198,8 @@ async function _sendTXs(i, maxIterations, txType) {
       switch (txType) {
       case 'claim': setUserClaimed(txs[t].i, txReceipts[t].status); break;
       case 'subscribe': setUserSubscribed(txs[t].i, txReceipts[t].status); break;
+      case 'burn': setUserBurned(txs[t].i, txReceipts[t].status); break;
+      case 'transfer': setUserTransferred(txs[t].i, txReceipts[t].status); break;
       case 'renew': setUserRenewed(txs[t].i, txReceipts[t].status); break;
       }
     }
