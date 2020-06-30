@@ -4,10 +4,13 @@
   "description": "Reddit scaling demo",
   "main": "index.js",
   "scripts": {
+    "deploy": "node scripts/deploy.js",
     "generate-users": "node scripts/generate-users.js",
     "generate-txs": "node scripts/generate-txs.js",
     "load-claim": "node scripts/load.js claim",
     "load-subscribe": "node scripts/load.js subscribe",
+    "load-burn": "node scripts/load.js burn",
+    "load-transfer": "node scripts/load.js transfer",
     "load-renew": "node scripts/load.js renew"
   },
   "author": "",
