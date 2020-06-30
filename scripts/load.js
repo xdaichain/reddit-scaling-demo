@@ -42,12 +42,12 @@ async function main() {
   }
 
   limitPasses = parseInt(program.passes);
-  if (isNaN(limitPasses)) {
+  if (isNaN(limitPasses) || limitPasses < 0) {
     program.help();
   }
 
   onePassTxLimit = parseInt(program.txLimit);
-  if (isNaN(onePassTxLimit)) {
+  if (isNaN(onePassTxLimit) || onePassTxLimit <= 0) {
     program.help();
   }
 
