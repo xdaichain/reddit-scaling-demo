@@ -2,23 +2,16 @@
   "name": "reddit-scaling-demo",
   "version": "1.0.0",
   "description": "Reddit scaling demo",
-  "main": "index.js",
   "scripts": {
     "deploy": "node scripts/deploy.js",
     "generate-users": "node scripts/generate-users.js",
     "generate-txs": "node scripts/generate-txs.js",
-    "load-claim": "node scripts/load.js claim",
-    "load-subscribe": "node scripts/load.js subscribe",
-    "load-burn": "node scripts/load.js burn",
-    "load-transfer": "node scripts/load.js transfer",
-    "load-renew": "node scripts/load.js renew"
+    "load": "node scripts/load.js"
   },
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "chai": "4.2.0",
-    "chai-as-promised": "7.1.1",
-    "chai-bn": "0.1.1",
+    "commander": "5.1.0",
     "dotenv": "8.2.0",
     "envfile": "6.8.0",
     "solc": "0.5.17",
