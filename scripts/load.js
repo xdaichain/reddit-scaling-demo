@@ -27,6 +27,7 @@ let passesPerformed = 0;
 let startTimestamp;
 let users = [];
 let txs = [];
+let interrupt = false;
 
 main();
 
@@ -51,6 +52,8 @@ async function main() {
     program.help();
   }
 
+  processUnique();
+
   readCSV();
 
   eval(program.type)();
@@ -63,10 +66,13 @@ async function claim() {
   for (let i = 0; i < users.length; i++) {
     const { claimTx, claimed } = user(i);
 
+    if (!claimTx) continue;
     if (!claimed) txs.push({ i, tx: claimTx });
     if (await _sendTXs(i, users.length, 'claim')) break;
   }
+
   await rewriteCsvPromise;
+  console.log('Finished');
 }
 
 async function subscribe() {
@@ -82,7 +88,9 @@ async function subscribe() {
     if (!subscribed) txs.push({ i, tx: subscribeTx });
     if (await _sendTXs(i, maxSubscribeOperations, 'subscribe')) break;
   }
+
   await rewriteCsvPromise;
+  console.log('Finished');
 }
 
 async function burn() {
@@ -91,14 +99,17 @@ async function burn() {
 
   startTimestamp = process.hrtime();
   for (let i = 0; i < maxBurnOperations; i++) {
-    const { burnTx, claimed, burned } = user(i);
+    const { subscribeTx, burnTx, claimed, subscribed, burned } = user(i);
 
     if (!burnTx) continue;
     if (!claimed) continue; // skip user who didn't claim their tokens
+    if (subscribeTx && !subscribed) continue; // skip user who didn't subscribe
     if (!burned) txs.push({ i, tx: burnTx });
     if (await _sendTXs(i, maxBurnOperations, 'burn')) break;
   }
+
   await rewriteCsvPromise;
+  console.log('Finished');
 }
 
 async function transfer() {
@@ -106,13 +117,18 @@ async function transfer() {
 
   startTimestamp = process.hrtime();
   for (let i = 0; i < users.length; i++) {
-    const { transferTx, claimed, transferred } = user(i);
+    const { subscribeTx, burnTx, transferTx, claimed, subscribed, burned, transferred } = user(i);
 
+    if (!transferTx) continue;
     if (!claimed) continue; // skip user who didn't claim their tokens
+    if (subscribeTx && !subscribed) continue; // skip user who didn't subscribe
+    if (burnTx && !burned) continue; // skip user who didn't burn
     if (!transferred) txs.push({ i, tx: transferTx });
     if (await _sendTXs(i, users.length, 'transfer')) break;
   }
+
   await rewriteCsvPromise;
+  console.log('Finished');
 }
 
 async function renew() {
@@ -157,7 +173,9 @@ async function renew() {
       break;
     }
   }
+
   await rewriteCsvPromise;
+  console.log('Finished');
 }
 
 function readCSV() {
@@ -307,7 +325,7 @@ async function _sendTXs(i, maxIterations, txType) {
     console.log(`  Cumulative performance: ${performance} txs/sec`);
     console.log();
 
-    if ((limitPasses > 0 && ++passesPerformed >= limitPasses) || !knownStatus) {
+    if ((limitPasses > 0 && ++passesPerformed >= limitPasses) || !knownStatus || interrupt) {
       return true;
     }
   }
@@ -319,8 +337,41 @@ function _rewriteCSV() {
     setTimeout(() => {
       fs.writeFileSync(filepath, users.join('\n'), 'utf8');
       resolve();
-    }, 0);
+    }, 0); // run CSV saving in a separate thread to save time
   });
+}
+
+function processExited() {
+  try {
+    fs.unlinkSync(`${__dirname}/tmp.pid`);
+  } catch (e) {
+  }
+}
+
+function processInterrupt() {
+  console.log('Terminating the script, please wait...');
+  interrupt = true;
+}
+
+// Ensures the load script is working alone
+function processUnique() {
+  let existingPID = 0;
+
+  try {
+    existingPID = fs.readFileSync(`${__dirname}/tmp.pid`, 'utf8');
+  } catch (e) {
+  }
+
+  if (existingPID !== 0) {
+    console.log(`The load script is already working. PID: ${existingPID}`);
+    process.exit();
+  } else {
+    fs.writeFileSync(`${__dirname}/tmp.pid`, process.pid, 'utf8');
+    process.on('exit', processExited);
+    process.on('uncaughtException', processExited);
+    process.on('SIGINT', processInterrupt);
+    process.on('SIGTERM', processInterrupt);
+  }
 }
 
 function sleep(ms) {
