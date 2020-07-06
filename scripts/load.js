@@ -60,7 +60,7 @@ async function main() {
 }
 
 async function claim() {
-  console.log('Performing `claim` transactions...');
+  console.log(`Performing 'claim' transactions...`);
 
   startTimestamp = process.hrtime();
   for (let i = 0; i < users.length; i++) {
@@ -76,7 +76,7 @@ async function claim() {
 }
 
 async function subscribe() {
-  console.log('Performing `subscribe` transactions...');
+  console.log(`Performing 'subscribe' transactions...`);
   const maxSubscribeOperations = constants.TOTAL_SUBSCRIBE_TRANSACTIONS;
 
   startTimestamp = process.hrtime();
@@ -84,7 +84,7 @@ async function subscribe() {
     const { subscribeTx, claimed, subscribed } = user(i);
 
     if (!subscribeTx) continue;
-    if (!claimed) continue; // skip user who didn't claim their tokens
+    if (claimed !== 'Y') continue; // skip user who didn't claim their tokens
     if (!subscribed) txs.push({ i, tx: subscribeTx });
     if (await _sendTXs(i, maxSubscribeOperations, 'subscribe')) break;
   }
@@ -94,7 +94,7 @@ async function subscribe() {
 }
 
 async function burn() {
-  console.log('Performing `burn` transactions...');
+  console.log(`Performing 'burn' transactions...`);
   const maxBurnOperations = constants.TOTAL_BURN_TRANSACTIONS;
 
   startTimestamp = process.hrtime();
@@ -102,8 +102,8 @@ async function burn() {
     const { subscribeTx, burnTx, claimed, subscribed, burned } = user(i);
 
     if (!burnTx) continue;
-    if (!claimed) continue; // skip user who didn't claim their tokens
-    if (subscribeTx && !subscribed) continue; // skip user who didn't subscribe
+    if (claimed !== 'Y') continue; // skip user who didn't claim their tokens
+    if (subscribeTx && !subscribed) continue; // skip user who didn't try to subscribe
     if (!burned) txs.push({ i, tx: burnTx });
     if (await _sendTXs(i, maxBurnOperations, 'burn')) break;
   }
@@ -113,16 +113,16 @@ async function burn() {
 }
 
 async function transfer() {
-  console.log('Performing `transfer` transactions...');
+  console.log(`Performing 'transfer' transactions...`);
 
   startTimestamp = process.hrtime();
   for (let i = 0; i < users.length; i++) {
     const { subscribeTx, burnTx, transferTx, claimed, subscribed, burned, transferred } = user(i);
 
     if (!transferTx) continue;
-    if (!claimed) continue; // skip user who didn't claim their tokens
-    if (subscribeTx && !subscribed) continue; // skip user who didn't subscribe
-    if (burnTx && !burned) continue; // skip user who didn't burn
+    if (claimed !== 'Y') continue; // skip user who didn't claim their tokens
+    if (subscribeTx && !subscribed) continue; // skip user who didn't try to subscribe
+    if (burnTx && !burned) continue; // skip user who didn't try to burn
     if (!transferred) txs.push({ i, tx: transferTx });
     if (await _sendTXs(i, users.length, 'transfer')) break;
   }
@@ -132,7 +132,7 @@ async function transfer() {
 }
 
 async function renew() {
-  console.log('Performing `renew` transactions...');
+  console.log(`Performing 'renew' transactions...`);
 
   const maxRenewOperations = constants.TOTAL_SUBSCRIBE_TRANSACTIONS;
   const chainId = await web3.eth.getChainId();
@@ -143,7 +143,7 @@ async function renew() {
   for (let i = 0; i < maxRenewOperations; i++) {
     const { account, subscribed, renewed } = user(i);
 
-    if (!subscribed) continue; // skip user who didn't subscribe
+    if (subscribed !== 'Y') continue; // skip user who didn't subscribe
     if (!renewed) {
       const renew = subscriptionsContract.methods.renew(account);
       const tx = await web3.eth.accounts.signTransaction({
@@ -238,31 +238,48 @@ async function _sendTXs(i, maxIterations, txType) {
     }
     console.log(`  Waiting for mining...`);
     let txReceipts = [];
+    let successCount = 0;
+    let revertCount = 0;
+    let errorCount = 0;
     const maxTries = 3;
-    for (let t = 1; t <= maxTries; t++) {
-      try {
-        txReceipts = await Promise.all(txPromises);
-        break;
-      } catch (e) {
-        console.log(`   ERROR: ${e.message}`);
-        if (t < maxTries) {
-          console.log('   Try again in 3 seconds...');
-          await sleep(3000);
+    for (let p = 0; p < txPromises.length; p++) {
+      let receipt = null;
+      for (let t = 1; t <= maxTries; t++) {
+        try {
+          receipt = await txPromises[p];
+        } catch (e) {
+          console.log(`   ERROR: ${e.message}`);
+          if (e.message.includes('reverted')) {
+            receipt = { status: false };
+          } else if (t < maxTries) {
+            console.log('   Try again in 3 seconds...');
+            await sleep(3000);
+          }
+        }
+        if (receipt !== null) {
+          break;
         }
       }
+      if (receipt) {
+        if (receipt.status) {
+          successCount++;
+        } else {
+          revertCount++;
+        }
+      } else {
+        errorCount++;
+      }
+      txReceipts.push(receipt);
     }
-    let knownStatus = false;
-    if (txReceipts.length == txs.length) {
-      console.log(`  Mined`);
-      knownStatus = true;
-    }
+    console.log(`  Processed (${successCount} succeeded, ${revertCount} reverted, ${errorCount} failed)`);
     for (let t = 0; t < txs.length; t++) {
       const userIndex = txs[t].i;
       const userAddress = user(userIndex).account;
+      const receipt = txReceipts[t];
 
       if (txType === 'claim') {
-        if (knownStatus) {
-          setUserClaimed(userIndex, txReceipts[t].status);
+        if (receipt) {
+          setUserClaimed(userIndex, receipt.status);
           totalTxsMined++;
         } else {
           let claimed = undefined;
@@ -281,8 +298,8 @@ async function _sendTXs(i, maxIterations, txType) {
           }
         }
       } else if (txType === 'subscribe') {
-        if (knownStatus) {
-          setUserSubscribed(userIndex, txReceipts[t].status);
+        if (receipt) {
+          setUserSubscribed(userIndex, receipt.status);
           totalTxsMined++;
         } else {
           let subscribed = undefined;
@@ -300,14 +317,14 @@ async function _sendTXs(i, maxIterations, txType) {
             totalTxsMined++;
           }
         }
-      } else if (txType === 'burn' && knownStatus) {
-        setUserBurned(userIndex, txReceipts[t].status);
+      } else if (txType === 'burn' && receipt) {
+        setUserBurned(userIndex, receipt.status);
         totalTxsMined++;
-      } else if (txType === 'transfer' && knownStatus) {
-        setUserTransferred(userIndex, txReceipts[t].status);
+      } else if (txType === 'transfer' && receipt) {
+        setUserTransferred(userIndex, receipt.status);
         totalTxsMined++;
-      } else if (txType === 'renew' && knownStatus) {
-        setUserRenewed(userIndex, txReceipts[t].status);
+      } else if (txType === 'renew' && receipt) {
+        setUserRenewed(userIndex, receipt.status);
         totalTxsMined++;
       }
     }
@@ -325,7 +342,7 @@ async function _sendTXs(i, maxIterations, txType) {
     console.log(`  Cumulative performance: ${performance} txs/sec`);
     console.log();
 
-    if ((limitPasses > 0 && ++passesPerformed >= limitPasses) || !knownStatus || interrupt) {
+    if ((limitPasses > 0 && ++passesPerformed >= limitPasses) || revertCount || errorCount || interrupt) {
       return true;
     }
   }
