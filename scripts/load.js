@@ -226,7 +226,9 @@ async function _sendTXs(i, maxIterations, txType) {
     log(`Sending ${txs.length} '${txType}' transactions...`, true);
     let txPromises = [];
     for (let t = 0; t < txs.length; t++) {
-      txPromises.push(web3.eth.sendSignedTransaction(txs[t].tx));
+      let p = web3.eth.sendSignedTransaction(txs[t].tx);
+      p.catch(() => {});
+      txPromises.push(p);
     }
     log(`Waiting for mining...`);
     let txReceipts = [];
@@ -236,18 +238,20 @@ async function _sendTXs(i, maxIterations, txType) {
     let minBlockNumber = Number.MAX_SAFE_INTEGER;
     let maxBlockNumber = 0;
     const maxTries = 3;
-    for (let p = 0; p < txPromises.length; p++) {
+    for (let p = 0; p < txPromises.length && !interrupt; p++) {
       let receipt = null;
       for (let t = 1; t <= maxTries; t++) {
         try {
           receipt = await txPromises[p];
         } catch (e) {
-          log(`  ERROR: ${e.message}`);
+          log(`  ERROR for ${user(txs[p].i).account}: ${e.message}`);
           if (e.message.includes('reverted')) {
             receipt = { status: false };
-          } else if (t < maxTries) {
+          } else if (t < maxTries && !interrupt) {
             log('  Try again in 3 seconds...');
             await sleep(3000);
+          } else if (interrupt) {
+            break;
           }
         }
         if (receipt !== null) {
@@ -275,7 +279,7 @@ async function _sendTXs(i, maxIterations, txType) {
     if (minBlockNumber < Number.MAX_SAFE_INTEGER && maxBlockNumber > 0) {
       log(`Blocks range: ${minBlockNumber} - ${maxBlockNumber}`);
     }
-    for (let t = 0; t < txs.length; t++) {
+    for (let t = 0; t < txReceipts.length; t++) {
       const userIndex = txs[t].i;
       const userAddress = user(userIndex).account;
       const receipt = txReceipts[t];
@@ -288,9 +292,11 @@ async function _sendTXs(i, maxIterations, txType) {
           let claimed = undefined;
           while (claimed === undefined) {
             try {
-              claimed = ('0' !== await subredditPointsContract.methods.balanceOf(userAddress).call());
+              let p = subredditPointsContract.methods.balanceOf(userAddress).call();
+              p.catch(() => {});
+              claimed = ('0' !== await p);
             } catch (e) {
-              log(`  Cannot get user balance. Error: ${e.message}`);
+              log(`  Cannot get user balance for ${userAddress}. Error: ${e.message}`);
               if (interrupt) break;
               log('  Try again in 3 seconds...');
               await sleep(3000);
@@ -309,9 +315,11 @@ async function _sendTXs(i, maxIterations, txType) {
           let subscribed = undefined;
           while (subscribed === undefined) {
             try {
-              subscribed = ('0' !== await subscriptionsContract.methods.expiration(userAddress).call());
+              let p = subscriptionsContract.methods.expiration(userAddress).call();
+              p.catch(() => {});
+              subscribed = ('0' !== await p);
             } catch (e) {
-              log(`  Cannot get expiration date. Error: ${e.message}`);
+              log(`  Cannot get expiration date for ${userAddress}. Error: ${e.message}`);
               if (interrupt) break;
               log('  Try again in 3 seconds...');
               await sleep(3000);
