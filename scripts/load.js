@@ -36,6 +36,7 @@ async function main() {
   program.requiredOption('-t, --type <type>', 'transaction type. Possible values: claim, subscribe, burn, transfer');
   program.option('-p, --passes [number]', 'how many passes to perform. 0 for unlimited', limitPasses);
   program.option('-l, --tx-limit [number]', 'how many transactions per one pass', onePassTxLimit);
+  program.option('--no-csv-refresh', 'disables csv file refreshing after each pass');
   program.parse(process.argv);
 
   if (['claim', 'subscribe', 'burn', 'transfer', 'renew'].indexOf(program.type) < 0) {
@@ -345,8 +346,9 @@ async function _sendTXs(i, maxIterations, txType) {
 
     const timeDiff = process.hrtime(startTimestamp);
 
-    await rewriteCsvPromise;
-    rewriteCsvPromise = _rewriteCSV();
+    if (program.csvRefresh) {
+      await _rewriteCSV();
+    }
 
     const timeDiffSeconds = (timeDiff[0] * 1e9 + timeDiff[1]) / 1e9;
     const performance = Math.round((totalTxsMined / timeDiffSeconds + Number.EPSILON) * 100) / 100;
@@ -355,14 +357,18 @@ async function _sendTXs(i, maxIterations, txType) {
     log(`Cumulative performance: ${performance} txs/sec`);
 
     if ((limitPasses > 0 && ++passesPerformed >= limitPasses) || revertCount || errorCount || interrupt) {
+      if (!program.csvRefresh) {
+        await _rewriteCSV();
+      }
       return true;
     }
   }
   return false;
 }
 
-function _rewriteCSV() {
-  return new Promise((resolve, reject) => {
+async function _rewriteCSV() {
+  await rewriteCsvPromise;
+  rewriteCsvPromise = new Promise((resolve, reject) => {
     setTimeout(() => {
       fs.writeFileSync(filepath, users.join('\n'), 'utf8');
       resolve();
