@@ -60,8 +60,6 @@ async function main() {
 }
 
 async function claim() {
-  console.log(`Performing 'claim' transactions...`);
-
   startTimestamp = process.hrtime();
   for (let i = 0; i < users.length; i++) {
     const { claimTx, claimed } = user(i);
@@ -72,11 +70,10 @@ async function claim() {
   }
 
   await rewriteCsvPromise;
-  console.log('Finished');
+  log('Finished', true);
 }
 
 async function subscribe() {
-  console.log(`Performing 'subscribe' transactions...`);
   const maxSubscribeOperations = constants.TOTAL_SUBSCRIBE_TRANSACTIONS;
 
   startTimestamp = process.hrtime();
@@ -90,11 +87,10 @@ async function subscribe() {
   }
 
   await rewriteCsvPromise;
-  console.log('Finished');
+  log('Finished', true);
 }
 
 async function burn() {
-  console.log(`Performing 'burn' transactions...`);
   const maxBurnOperations = constants.TOTAL_BURN_TRANSACTIONS;
 
   startTimestamp = process.hrtime();
@@ -109,12 +105,10 @@ async function burn() {
   }
 
   await rewriteCsvPromise;
-  console.log('Finished');
+  log('Finished', true);
 }
 
 async function transfer() {
-  console.log(`Performing 'transfer' transactions...`);
-
   startTimestamp = process.hrtime();
   for (let i = 0; i < users.length; i++) {
     const { subscribeTx, burnTx, transferTx, claimed, subscribed, burned, transferred } = user(i);
@@ -128,12 +122,10 @@ async function transfer() {
   }
 
   await rewriteCsvPromise;
-  console.log('Finished');
+  log('Finished', true);
 }
 
 async function renew() {
-  console.log(`Performing 'renew' transactions...`);
-
   const maxRenewOperations = constants.TOTAL_SUBSCRIBE_TRANSACTIONS;
   const chainId = await web3.eth.getChainId();
   let nonce = await web3.eth.getTransactionCount(process.env.KARMA_SOURCE);
@@ -175,11 +167,11 @@ async function renew() {
   }
 
   await rewriteCsvPromise;
-  console.log('Finished');
+  log('Finished', true);
 }
 
 function readCSV() {
-  console.log('Reading CSV...');
+  log('Reading CSV...', true);
   users = fs.readFileSync(filepath, 'utf8').split('\n');
 }
 
@@ -231,12 +223,12 @@ function _setUserBooleanFlag(userIndex, flag, columnIndex) {
 async function _sendTXs(i, maxIterations, txType) {
   if (txs.length >= onePassTxLimit || i == maxIterations - 1) {
     // Send transactions and wait them to be mined
-    console.log(`  Sending ${txs.length} '${txType}' transactions...`);
+    log(`Sending ${txs.length} '${txType}' transactions...`, true);
     let txPromises = [];
     for (let t = 0; t < txs.length; t++) {
       txPromises.push(web3.eth.sendSignedTransaction(txs[t].tx));
     }
-    console.log(`  Waiting for mining...`);
+    log(`Waiting for mining...`);
     let txReceipts = [];
     let successCount = 0;
     let revertCount = 0;
@@ -248,11 +240,11 @@ async function _sendTXs(i, maxIterations, txType) {
         try {
           receipt = await txPromises[p];
         } catch (e) {
-          console.log(`   ERROR: ${e.message}`);
+          log(`  ERROR: ${e.message}`);
           if (e.message.includes('reverted')) {
             receipt = { status: false };
           } else if (t < maxTries) {
-            console.log('   Try again in 3 seconds...');
+            log('  Try again in 3 seconds...');
             await sleep(3000);
           }
         }
@@ -271,7 +263,7 @@ async function _sendTXs(i, maxIterations, txType) {
       }
       txReceipts.push(receipt);
     }
-    console.log(`  Processed (${successCount} succeeded, ${revertCount} reverted, ${errorCount} failed)`);
+    log(`Processed (${successCount} succeeded, ${revertCount} reverted, ${errorCount} failed)`);
     for (let t = 0; t < txs.length; t++) {
       const userIndex = txs[t].i;
       const userAddress = user(userIndex).account;
@@ -287,8 +279,9 @@ async function _sendTXs(i, maxIterations, txType) {
             try {
               claimed = ('0' !== await subredditPointsContract.methods.balanceOf(userAddress).call());
             } catch (e) {
-              console.log(`  Cannot get user balance. Error: ${e.message}`);
-              console.log('  Try again in 3 seconds...');
+              log(`  Cannot get user balance. Error: ${e.message}`);
+              if (interrupt) break;
+              log('  Try again in 3 seconds...');
               await sleep(3000);
             }
           }
@@ -307,8 +300,9 @@ async function _sendTXs(i, maxIterations, txType) {
             try {
               subscribed = ('0' !== await subscriptionsContract.methods.expiration(userAddress).call());
             } catch (e) {
-              console.log(`  Cannot get expiration date. Error: ${e.message}`);
-              console.log('  Try again in 3 seconds...');
+              log(`  Cannot get expiration date. Error: ${e.message}`);
+              if (interrupt) break;
+              log('  Try again in 3 seconds...');
               await sleep(3000);
             }
           }
@@ -338,9 +332,8 @@ async function _sendTXs(i, maxIterations, txType) {
     const timeDiffSeconds = (timeDiff[0] * 1e9 + timeDiff[1]) / 1e9;
     const performance = Math.round((totalTxsMined / timeDiffSeconds + Number.EPSILON) * 100) / 100;
 
-    console.log(`  TXs mined since start: ${totalTxsMined}`);
-    console.log(`  Cumulative performance: ${performance} txs/sec`);
-    console.log();
+    log(`TXs mined since start: ${totalTxsMined}`);
+    log(`Cumulative performance: ${performance} txs/sec`);
 
     if ((limitPasses > 0 && ++passesPerformed >= limitPasses) || revertCount || errorCount || interrupt) {
       return true;
@@ -366,7 +359,7 @@ function processExited() {
 }
 
 function processInterrupt() {
-  console.log('Terminating the script, please wait...');
+  log('Terminating the script, please wait...', true);
   interrupt = true;
 }
 
@@ -380,7 +373,7 @@ function processUnique() {
   }
 
   if (existingPID !== 0) {
-    console.log(`The load script is already working. PID: ${existingPID}`);
+    log(`The load script is already working. PID: ${existingPID}`);
     process.exit();
   } else {
     fs.writeFileSync(`${__dirname}/tmp.pid`, process.pid, 'utf8');
@@ -393,4 +386,19 @@ function processUnique() {
 
 function sleep(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+function log(message, emptyPreLine) {
+  const now = new Date;
+  const year = now.getUTCFullYear();
+  const month = (now.getUTCMonth() - 0 + 1).toString().padStart(2, '0');
+  const day = now.getUTCDate().toString().padStart(2, '0');
+  const hours = (now.getUTCHours() - 0).toString().padStart(2, '0');
+  const minutes = (now.getUTCMinutes() - 0).toString().padStart(2, '0');
+  const seconds = (now.getUTCSeconds() - 0).toString().padStart(2, '0');
+  const time = `${year}-${month}-${day} ${hours}:${minutes}:${seconds} UTC`;
+  if (emptyPreLine) {
+    console.log('');
+  }
+  console.log(`${time} ${message}`);
 }

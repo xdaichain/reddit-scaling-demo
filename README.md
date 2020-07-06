@@ -149,12 +149,21 @@ The script will not send transactions from the next pass until all transactions 
 After each pass, transaction results are written to `users.csv` into a separate column and the current performance information is displayed in the console. For example:
 
 ```
-Performing 'claim' transactions...
-  Sending 97 'claim' transactions...
-  Waiting for mining...
-  Processed (97 succeeded, 0 reverted, 0 failed)
-  TXs mined since start: 97
-  Cumulative performance: 12.5 txs/sec
+2020-07-06 07:33:27 UTC Reading CSV...
+
+2020-07-06 07:33:27 UTC Sending 50 'subscribe' transactions...
+2020-07-06 07:33:27 UTC Waiting for mining...
+2020-07-06 07:33:32 UTC Processed (50 succeeded, 0 reverted, 0 failed)
+2020-07-06 07:33:32 UTC TXs mined since start: 50
+2020-07-06 07:33:32 UTC Cumulative performance: 9.47 txs/sec
+
+2020-07-06 07:33:32 UTC Sending 50 'subscribe' transactions...
+2020-07-06 07:33:32 UTC Waiting for mining...
+2020-07-06 07:33:37 UTC Processed (50 succeeded, 0 reverted, 0 failed)
+2020-07-06 07:33:37 UTC TXs mined since start: 100
+2020-07-06 07:33:37 UTC Cumulative performance: 10.19 txs/sec
+
+2020-07-06 07:33:37 UTC Finished
 ```
 
 There are four columns appended to the CSV by the load script, one column for each transaction type:
