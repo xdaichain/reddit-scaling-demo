@@ -91,6 +91,8 @@ The scripts of this repo can be used on another xDai-like chain which has zero g
 
 To allow zero gas price transactions to the listed functions of the Reddit smart contracts on the xDai chain, we need to modify corresponding rules in the [`TxPermission`](https://github.com/poanetwork/posdao-contracts/blob/master/contracts/TxPermission.sol) contract (and then switch [TxPermission proxy](https://github.com/poanetwork/poa-chain-spec/blob/55d94e928ab942bcdc77cdf3936245492272c10a/spec.json#L57) to it's modified implementation by POSDAO owner address). Example of the corresponding `TxPermission` implementation modifying: https://github.com/poanetwork/posdao-contracts/commit/f47ab5b6cf1103e3c47d1c98adb056361dcc0e7a
 
+Also, POSDAO owner should add the `OWNER` account to the `Certifier` contract using the [`Certifier.certify`](https://github.com/poanetwork/posdao-contracts/blob/229d6441ae32fd4250884e1c8d53f7fec10a9e9e/contracts/Certifier.sol#L62-L67) on xDai chain to allow them use zero gas price for deploying the Reddit contracts.
+
 ## Step 5. Generating load transactions
 
 Run the following command:
