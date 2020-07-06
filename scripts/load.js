@@ -233,6 +233,8 @@ async function _sendTXs(i, maxIterations, txType) {
     let successCount = 0;
     let revertCount = 0;
     let errorCount = 0;
+    let minBlockNumber = Number.MAX_SAFE_INTEGER;
+    let maxBlockNumber = 0;
     const maxTries = 3;
     for (let p = 0; p < txPromises.length; p++) {
       let receipt = null;
@@ -258,12 +260,21 @@ async function _sendTXs(i, maxIterations, txType) {
         } else {
           revertCount++;
         }
+        if (receipt.blockNumber < minBlockNumber) {
+          minBlockNumber = receipt.blockNumber;
+        }
+        if (receipt.blockNumber > maxBlockNumber) {
+          maxBlockNumber = receipt.blockNumber;
+        }
       } else {
         errorCount++;
       }
       txReceipts.push(receipt);
     }
     log(`Processed (${successCount} succeeded, ${revertCount} reverted, ${errorCount} failed)`);
+    if (minBlockNumber < Number.MAX_SAFE_INTEGER && maxBlockNumber > 0) {
+      log(`Blocks range: ${minBlockNumber} - ${maxBlockNumber}`);
+    }
     for (let t = 0; t < txs.length; t++) {
       const userIndex = txs[t].i;
       const userAddress = user(userIndex).account;

@@ -149,21 +149,23 @@ The script will not send transactions from the next pass until all transactions 
 After each pass, transaction results are written to `users.csv` into a separate column and the current performance information is displayed in the console. For example:
 
 ```
-2020-07-06 07:33:27 UTC Reading CSV...
+2020-07-06 07:50:37 UTC Reading CSV...
 
-2020-07-06 07:33:27 UTC Sending 50 'subscribe' transactions...
-2020-07-06 07:33:27 UTC Waiting for mining...
-2020-07-06 07:33:32 UTC Processed (50 succeeded, 0 reverted, 0 failed)
-2020-07-06 07:33:32 UTC TXs mined since start: 50
-2020-07-06 07:33:32 UTC Cumulative performance: 9.47 txs/sec
+2020-07-06 07:50:38 UTC Sending 50 'subscribe' transactions...
+2020-07-06 07:50:38 UTC Waiting for mining...
+2020-07-06 07:50:42 UTC Processed (50 succeeded, 0 reverted, 0 failed)
+2020-07-06 07:50:42 UTC Blocks range: 10812249 - 10812249
+2020-07-06 07:50:42 UTC TXs mined since start: 50
+2020-07-06 07:50:42 UTC Cumulative performance: 12.84 txs/sec
 
-2020-07-06 07:33:32 UTC Sending 50 'subscribe' transactions...
-2020-07-06 07:33:32 UTC Waiting for mining...
-2020-07-06 07:33:37 UTC Processed (50 succeeded, 0 reverted, 0 failed)
-2020-07-06 07:33:37 UTC TXs mined since start: 100
-2020-07-06 07:33:37 UTC Cumulative performance: 10.19 txs/sec
+2020-07-06 07:50:42 UTC Sending 50 'subscribe' transactions...
+2020-07-06 07:50:42 UTC Waiting for mining...
+2020-07-06 07:50:46 UTC Processed (50 succeeded, 0 reverted, 0 failed)
+2020-07-06 07:50:46 UTC Blocks range: 10812250 - 10812250
+2020-07-06 07:50:46 UTC TXs mined since start: 100
+2020-07-06 07:50:46 UTC Cumulative performance: 11.61 txs/sec
 
-2020-07-06 07:33:37 UTC Finished
+2020-07-06 07:50:47 UTC Finished
 ```
 
 There are four columns appended to the CSV by the load script, one column for each transaction type:
