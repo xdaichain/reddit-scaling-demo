@@ -3,6 +3,7 @@ require('dotenv').config();
 const assert = require('assert');
 const { program } = require('commander');
 const constants = require('./constants');
+const Queue = require('./queue');
 const Web3 = require('web3');
 const fs = require('fs');
 const web3 = new Web3(process.env.RPC);
@@ -19,15 +20,21 @@ web3.eth.transactionConfirmationBlocks = 1;
 web3.eth.transactionPollingTimeout = 300;
 
 const filepath = `${__dirname}/../users.csv`;
-let rewriteCsvPromise;
+let receiptQueue = new Queue();
 let onePassTxLimit = 1; // how many transactions per one pass
-let limitPasses = 1; // how many passes. 0 for unlimited passes
-let totalTxsMined = 0;
+let onePassInterval = 5; // interval between passes (in seconds)
+let limitPasses = 1; // how many passes allowed. 0 for unlimited passes
+let limitReceiptQueue = 200; // how many receipts in queue allowed
 let passesPerformed = 0;
 let startTimestamp;
 let users = [];
 let txs = [];
+let sendingFinished = false;
 let interrupt = false;
+let successCount = 0;
+let revertCount = 0;
+let errorCount = 0;
+let csvSavePromise;
 
 main();
 
@@ -36,10 +43,11 @@ async function main() {
   program.requiredOption('-t, --type <type>', 'transaction type. Possible values: claim, subscribe, burn, transfer');
   program.option('-p, --passes [number]', 'how many passes to perform. 0 for unlimited', limitPasses);
   program.option('-l, --tx-limit [number]', 'how many transactions per one pass', onePassTxLimit);
-  program.option('--no-csv-refresh', 'disables csv file refreshing after each pass');
+  program.option('-i, --interval [number]', 'seconds between passes', onePassInterval);
+  program.option('-q, --queue-limit [number]', 'receipt queue max size. 0 to ignore receipts', limitReceiptQueue);
   program.parse(process.argv);
 
-  if (['claim', 'subscribe', 'burn', 'transfer', 'renew'].indexOf(program.type) < 0) {
+  if (['claim', 'subscribe', 'burn', 'transfer'].indexOf(program.type) < 0) {
     program.help();
   }
 
@@ -53,48 +61,54 @@ async function main() {
     program.help();
   }
 
+  onePassInterval = parseInt(program.interval);
+  if (isNaN(onePassInterval) || onePassInterval <= 0) {
+    program.help();
+  }
+
+  limitReceiptQueue = parseInt(program.queueLimit);
+  if (isNaN(limitReceiptQueue) || limitReceiptQueue < 0) {
+    program.help();
+  }
+
   processUnique();
 
-  readCSV();
+  csvLoad();
 
+  startTimestamp = process.hrtime();
+  if (limitReceiptQueue > 0) {
+    setTimeout(handleReceipts, 0);
+  }
   eval(program.type)();
+  await csvSavePromise;
 }
 
 async function claim() {
-  startTimestamp = process.hrtime();
   for (let i = 0; i < users.length; i++) {
     const { claimTx, claimed } = user(i);
 
     if (!claimTx) continue;
     if (!claimed) txs.push({ i, tx: claimTx });
-    if (await _sendTXs(i, users.length, 'claim')) break;
+    if (!(await sendTXs(i, users.length))) break;
   }
-
-  await rewriteCsvPromise;
-  log('Finished', true);
 }
 
 async function subscribe() {
   const maxSubscribeOperations = constants.TOTAL_SUBSCRIBE_TRANSACTIONS;
 
-  startTimestamp = process.hrtime();
   for (let i = 0; i < maxSubscribeOperations; i++) {
     const { subscribeTx, claimed, subscribed } = user(i);
 
     if (!subscribeTx) continue;
     if (claimed !== 'Y') continue; // skip user who didn't claim their tokens
     if (!subscribed) txs.push({ i, tx: subscribeTx });
-    if (await _sendTXs(i, maxSubscribeOperations, 'subscribe')) break;
+    if (!(await sendTXs(i, maxSubscribeOperations))) break;
   }
-
-  await rewriteCsvPromise;
-  log('Finished', true);
 }
 
 async function burn() {
   const maxBurnOperations = constants.TOTAL_BURN_TRANSACTIONS;
 
-  startTimestamp = process.hrtime();
   for (let i = 0; i < maxBurnOperations; i++) {
     const { subscribeTx, burnTx, claimed, subscribed, burned } = user(i);
 
@@ -102,15 +116,11 @@ async function burn() {
     if (claimed !== 'Y') continue; // skip user who didn't claim their tokens
     if (subscribeTx && !subscribed) continue; // skip user who didn't try to subscribe
     if (!burned) txs.push({ i, tx: burnTx });
-    if (await _sendTXs(i, maxBurnOperations, 'burn')) break;
+    if (!(await sendTXs(i, maxBurnOperations))) break;
   }
-
-  await rewriteCsvPromise;
-  log('Finished', true);
 }
 
 async function transfer() {
-  startTimestamp = process.hrtime();
   for (let i = 0; i < users.length; i++) {
     const { subscribeTx, burnTx, transferTx, claimed, subscribed, burned, transferred } = user(i);
 
@@ -119,61 +129,180 @@ async function transfer() {
     if (subscribeTx && !subscribed) continue; // skip user who didn't try to subscribe
     if (burnTx && !burned) continue; // skip user who didn't try to burn
     if (!transferred) txs.push({ i, tx: transferTx });
-    if (await _sendTXs(i, users.length, 'transfer')) break;
+    if (!(await sendTXs(i, users.length))) break;
   }
-
-  await rewriteCsvPromise;
-  log('Finished', true);
 }
 
-async function renew() {
-  const maxRenewOperations = constants.TOTAL_SUBSCRIBE_TRANSACTIONS;
-  const chainId = await web3.eth.getChainId();
-  let nonce = await web3.eth.getTransactionCount(process.env.KARMA_SOURCE);
+async function sendTXs(i, maxIterations) {
+  if (txs.length < onePassTxLimit && i != maxIterations - 1) {
+    return true; // skip this iteration
+  }
 
-  // Prepare all `renew` transactions
-  let preparedTxs = {};
-  for (let i = 0; i < maxRenewOperations; i++) {
-    const { account, subscribed, renewed } = user(i);
-
-    if (subscribed !== 'Y') continue; // skip user who didn't subscribe
-    if (!renewed) {
-      const renew = subscriptionsContract.methods.renew(account);
-      const tx = await web3.eth.accounts.signTransaction({
-        nonce: nonce++,
-        chainId: chainId.toString(),
-        to: process.env.SUBSCRIPTIONS_CONTRACT,
-        data: renew.encodeABI(),
-        gasPrice: '0',
-        gas: 80000
-      }, process.env.KARMA_SOURCE_KEY);
-      preparedTxs[i] = tx.rawTransaction;
-
-      if (Object.keys(preparedTxs).length >= onePassTxLimit * limitPasses) break;
+  if (limitReceiptQueue > 0) {
+    while (receiptQueue.getLength() > limitReceiptQueue) {
+      await sleep(10);
     }
   }
 
-  // Perform prepared transactions
-  startTimestamp = process.hrtime();
-  for (let i = 0; i < maxRenewOperations; i++) {
-    const { account, subscribed, renewed } = user(i);
-
-    if (i in preparedTxs) {
-      txs.push({ i, tx: preparedTxs[i] });
-      delete preparedTxs[i];
-    }
-    if (await _sendTXs(i, maxRenewOperations, 'renew')) {
-      break;
+  log(`Sending ${txs.length} '${program.type}' transaction(s)...`, true);
+  for (let t = 0; t < txs.length; t++) {
+    const userIndex = txs[t].i;
+    let p = web3.eth.sendSignedTransaction(txs[t].tx);
+    p.catch(() => {});
+    if (limitReceiptQueue > 0) {
+      receiptQueue.enqueue({ i: userIndex, p });
+    } else {
+      switch (program.type) {
+      case 'claim': setUserClaimed(userIndex, true); break;
+      case 'subscribe': setUserSubscribed(userIndex, true); break;
+      case 'burn': setUserBurned(userIndex, true); break;
+      case 'transfer': setUserTransferred(userIndex, true); break;
+      }
     }
   }
+  txs = [];
 
-  await rewriteCsvPromise;
-  log('Finished', true);
+  if (limitReceiptQueue === 0) {
+    log(`Total sent: ${successCount}`);
+    await csvSave();
+  }
+
+  if ((limitPasses > 0 && ++passesPerformed >= limitPasses) || interrupt) {
+    sendingFinished = true;
+    return false;
+  }
+
+  await sleep(onePassInterval * 1000);
+
+  return true;
 }
 
-function readCSV() {
-  log('Reading CSV...', true);
-  users = fs.readFileSync(filepath, 'utf8').split('\n');
+async function handleReceipts() {
+  let start = process.hrtime();
+  while (true) {
+    const item = receiptQueue.dequeue();
+
+    if (!item) {
+      // If the queue is empty
+      if (interrupt || sendingFinished) {
+        printStatistics();
+        break;
+      } else {
+        await sleep(1);
+        continue;
+      }
+    }
+
+    const userIndex = item.i;
+    const userAddress = user(userIndex).account;
+    const maxTries = 3;
+
+    let receipt = null;
+    for (let t = 1; t <= maxTries; t++) {
+      try {
+        receipt = await item.p;
+      } catch (e) {
+        log(`  Error for ${user(userIndex).account}: ${e.message}`);
+        if (e.message.includes('reverted')) {
+          receipt = { status: false };
+        } else if (t < maxTries && !interrupt) {
+          log('  Try again in 3 seconds...');
+          await sleep(3000);
+        } else if (interrupt) {
+          break;
+        }
+      }
+      if (receipt !== null) {
+        break;
+      }
+    }
+
+    if (program.type === 'claim') {
+      if (receipt) {
+        setUserClaimed(userIndex, receipt.status);
+      } else {
+        let claimed = undefined;
+        for (let t = 1; t <= maxTries; t++) {
+          try {
+            let p = subredditPointsContract.methods.balanceOf(userAddress).call();
+            p.catch(() => {});
+            claimed = ('0' !== await p);
+          } catch (e) {
+            log(`  Cannot get user balance for ${userAddress}. Error: ${e.message}`);
+            if (t < maxTries && !interrupt) {
+              log('  Try again in 3 seconds...');
+              await sleep(3000);
+            } else if (interrupt) {
+              break;
+            }
+          }
+        }
+        if (claimed === true) {
+          setUserClaimed(userIndex, true);
+        } else {
+          errorCount++;
+        }
+      }
+    } else if (program.type === 'subscribe') {
+      if (receipt) {
+        setUserSubscribed(userIndex, receipt.status);
+      } else {
+        let subscribed = undefined;
+        for (let t = 1; t <= maxTries; t++) {
+          try {
+            let p = subscriptionsContract.methods.expiration(userAddress).call();
+            p.catch(() => {});
+            subscribed = ('0' !== await p);
+          } catch (e) {
+            log(`  Cannot get expiration date for ${userAddress}. Error: ${e.message}`);
+            if (t < maxTries && !interrupt) {
+              log('  Try again in 3 seconds...');
+              await sleep(3000);
+            } else if (interrupt) {
+              break;
+            }
+          }
+        }
+        if (subscribed === true) {
+          setUserSubscribed(userIndex, true);
+        } else {
+          errorCount++;
+        }
+      }
+    } else if (program.type === 'burn') {
+      if (receipt) {
+        setUserBurned(userIndex, receipt.status);
+      } else {
+        errorCount++;
+      }
+    } else if (program.type === 'transfer') {
+      if (receipt) {
+        setUserTransferred(userIndex, receipt.status);
+      } else {
+        errorCount++;
+      }
+    }
+
+    if (revertCount > 0 || errorCount > 0) {
+      interrupt = true;
+    }
+
+    const diff = process.hrtime(start);
+    const seconds = (diff[0] * 1e9 + diff[1]) / 1e9;
+    if (seconds >= onePassInterval) {
+      printStatistics();
+      start = process.hrtime();
+    }
+
+    if ((successCount + revertCount) % (limitReceiptQueue * 2) === 0) {
+      await csvSave();
+    }
+  }
+
+  await csvSave();
+  await csvSavePromise;
+
+  log('Finished');
 }
 
 function user(userIndex) {
@@ -190,186 +319,58 @@ function user(userIndex) {
     claimed: user[8],
     subscribed: user[9],
     burned: user[10],
-    transferred: user[11],
-    renewed: user[12]
+    transferred: user[11]
   }
 }
 
 function setUserClaimed(userIndex, claimed) {
-  _setUserBooleanFlag(userIndex, claimed, 8);
+  _setTxStatus(userIndex, claimed, 8);
 }
 
 function setUserSubscribed(userIndex, subscribed) {
-  _setUserBooleanFlag(userIndex, subscribed, 9);
+  _setTxStatus(userIndex, subscribed, 9);
 }
 
 function setUserBurned(userIndex, burned) {
-  _setUserBooleanFlag(userIndex, burned, 10);
+  _setTxStatus(userIndex, burned, 10);
 }
 
 function setUserTransferred(userIndex, transferred) {
-  _setUserBooleanFlag(userIndex, transferred, 11);
+  _setTxStatus(userIndex, transferred, 11);
 }
 
-function setUserRenewed(userIndex, renewed) {
-  _setUserBooleanFlag(userIndex, renewed, 12);
-}
-
-function _setUserBooleanFlag(userIndex, flag, columnIndex) {
+function _setTxStatus(userIndex, status, columnIndex) {
   let user = users[userIndex].split(',');
-  user[columnIndex] = flag ? 'Y' : 'N';
+  user[columnIndex] = status ? 'Y' : 'N';
   users[userIndex] = user.join(',');
-}
-
-async function _sendTXs(i, maxIterations, txType) {
-  if (txs.length >= onePassTxLimit || i == maxIterations - 1) {
-    // Send transactions and wait them to be mined
-    log(`Sending ${txs.length} '${txType}' transactions...`, true);
-    let txPromises = [];
-    for (let t = 0; t < txs.length; t++) {
-      let p = web3.eth.sendSignedTransaction(txs[t].tx);
-      p.catch(() => {});
-      txPromises.push(p);
-    }
-    log(`Waiting for mining...`);
-    let txReceipts = [];
-    let successCount = 0;
-    let revertCount = 0;
-    let errorCount = 0;
-    let minBlockNumber = Number.MAX_SAFE_INTEGER;
-    let maxBlockNumber = 0;
-    const maxTries = 3;
-    for (let p = 0; p < txPromises.length && !interrupt; p++) {
-      let receipt = null;
-      for (let t = 1; t <= maxTries; t++) {
-        try {
-          receipt = await txPromises[p];
-        } catch (e) {
-          log(`  ERROR for ${user(txs[p].i).account}: ${e.message}`);
-          if (e.message.includes('reverted')) {
-            receipt = { status: false };
-          } else if (t < maxTries && !interrupt) {
-            log('  Try again in 3 seconds...');
-            await sleep(3000);
-          } else if (interrupt) {
-            break;
-          }
-        }
-        if (receipt !== null) {
-          break;
-        }
-      }
-      if (receipt) {
-        if (receipt.status) {
-          successCount++;
-        } else {
-          revertCount++;
-        }
-        if (receipt.blockNumber < minBlockNumber) {
-          minBlockNumber = receipt.blockNumber;
-        }
-        if (receipt.blockNumber > maxBlockNumber) {
-          maxBlockNumber = receipt.blockNumber;
-        }
-      } else {
-        errorCount++;
-      }
-      txReceipts.push(receipt);
-    }
-    log(`Processed (${successCount} succeeded, ${revertCount} reverted, ${errorCount} failed)`);
-    if (minBlockNumber < Number.MAX_SAFE_INTEGER && maxBlockNumber > 0) {
-      log(`Blocks range: ${minBlockNumber} - ${maxBlockNumber}`);
-    }
-    for (let t = 0; t < txReceipts.length; t++) {
-      const userIndex = txs[t].i;
-      const userAddress = user(userIndex).account;
-      const receipt = txReceipts[t];
-
-      if (txType === 'claim') {
-        if (receipt) {
-          setUserClaimed(userIndex, receipt.status);
-          totalTxsMined++;
-        } else {
-          let claimed = undefined;
-          while (claimed === undefined) {
-            try {
-              let p = subredditPointsContract.methods.balanceOf(userAddress).call();
-              p.catch(() => {});
-              claimed = ('0' !== await p);
-            } catch (e) {
-              log(`  Cannot get user balance for ${userAddress}. Error: ${e.message}`);
-              if (interrupt) break;
-              log('  Try again in 3 seconds...');
-              await sleep(3000);
-            }
-          }
-          if (claimed === true) {
-            setUserClaimed(userIndex, true);
-            totalTxsMined++;
-          }
-        }
-      } else if (txType === 'subscribe') {
-        if (receipt) {
-          setUserSubscribed(userIndex, receipt.status);
-          totalTxsMined++;
-        } else {
-          let subscribed = undefined;
-          while (subscribed === undefined) {
-            try {
-              let p = subscriptionsContract.methods.expiration(userAddress).call();
-              p.catch(() => {});
-              subscribed = ('0' !== await p);
-            } catch (e) {
-              log(`  Cannot get expiration date for ${userAddress}. Error: ${e.message}`);
-              if (interrupt) break;
-              log('  Try again in 3 seconds...');
-              await sleep(3000);
-            }
-          }
-          if (subscribed === true) {
-            setUserSubscribed(userIndex, true);
-            totalTxsMined++;
-          }
-        }
-      } else if (txType === 'burn' && receipt) {
-        setUserBurned(userIndex, receipt.status);
-        totalTxsMined++;
-      } else if (txType === 'transfer' && receipt) {
-        setUserTransferred(userIndex, receipt.status);
-        totalTxsMined++;
-      } else if (txType === 'renew' && receipt) {
-        setUserRenewed(userIndex, receipt.status);
-        totalTxsMined++;
-      }
-    }
-    txs = [];
-
-    const timeDiff = process.hrtime(startTimestamp);
-
-    if (program.csvRefresh) {
-      await _rewriteCSV();
-    }
-
-    const timeDiffSeconds = (timeDiff[0] * 1e9 + timeDiff[1]) / 1e9;
-    const performance = Math.round((totalTxsMined / timeDiffSeconds + Number.EPSILON) * 100) / 100;
-
-    log(`TXs mined since start: ${totalTxsMined}`);
-    log(`Cumulative performance: ${performance} txs/sec`);
-
-    if ((limitPasses > 0 && ++passesPerformed >= limitPasses) || revertCount || errorCount || interrupt) {
-      if (!program.csvRefresh) {
-        await _rewriteCSV();
-      }
-      return true;
-    }
+  if (status) {
+    successCount++;
+  } else {
+    revertCount++;
   }
-  return false;
 }
 
-async function _rewriteCSV() {
-  await rewriteCsvPromise;
-  rewriteCsvPromise = new Promise((resolve, reject) => {
+function printStatistics() {
+  const timeDiff = process.hrtime(startTimestamp);
+  const timeDiffSeconds = (timeDiff[0] * 1e9 + timeDiff[1]) / 1e9;
+  const totalTxsMined = successCount + revertCount;
+  const performance = Math.round((totalTxsMined / timeDiffSeconds + Number.EPSILON) * 100) / 100;
+
+  log(`Current stat: ${successCount} succeeded, ${revertCount} reverted, ${errorCount} failed`, true);
+  log(`Receipt queue size: ${receiptQueue.getLength()}`)
+  log(`Cumulative performance: ${performance} txs/sec`);
+}
+
+function csvLoad() {
+  log('Reading CSV...', true);
+  users = fs.readFileSync(filepath, 'utf8').split('\n');
+}
+
+async function csvSave() {
+  await csvSavePromise;
+  csvSavePromise = new Promise((resolve, reject) => {
     setTimeout(() => {
+      log('Saving CSV...', true);
       fs.writeFileSync(filepath, users.join('\n'), 'utf8');
       resolve();
     }, 0); // run CSV saving in a separate thread to save time
@@ -409,10 +410,6 @@ function processUnique() {
   }
 }
 
-function sleep(ms) {
-  return new Promise(resolve => setTimeout(resolve, ms));
-}
-
 function log(message, emptyPreLine) {
   const now = new Date;
   const year = now.getUTCFullYear();
@@ -426,4 +423,8 @@ function log(message, emptyPreLine) {
     console.log('');
   }
   console.log(`${time} ${message}`);
+}
+
+function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
 }

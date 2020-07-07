@@ -17,7 +17,7 @@ async function main() {
   assert(!!karmaSourcePrivateKey);
 
   const totalAddresses = constants.TOTAL_USERS;
-  const renews = constants.TOTAL_SUBSCRIBE_TRANSACTIONS; // how many calls of `renew`
+  const subscribes = constants.TOTAL_SUBSCRIBE_TRANSACTIONS; // how many calls of `subscribe`
   const availablePoints = 50000000 / 2; // initially available points
   const chainId = await web3.eth.getChainId();
 
@@ -57,7 +57,7 @@ async function main() {
     const account = line[0];
 
     let karma;
-    if (i < renews) {
+    if (i < subscribes) {
       karma = randomInt(270, 400+1); // karma = 270...400
     } else {
       karma = randomInt(150, 200+1); // karma = 150...200
@@ -90,7 +90,7 @@ async function main() {
     const line = lines[i].split(',');
     const karma = line[2];
     const userPoints = availablePoints * karma / totalKarma;
-    if (i < renews) {
+    if (i < subscribes) {
       if (userPoints < minUserPoints1) {
         minUserPoints1 = userPoints;
       }
@@ -100,8 +100,8 @@ async function main() {
       }
     }
   }
-  console.log(`  minUserPoints for the first ${renews} addresses = ${minUserPoints1}`);
-  console.log(`  minUserPoints for remaining ${totalAddresses-renews} addresses = ${minUserPoints2}`);
+  console.log(`  minUserPoints for the first ${subscribes} addresses = ${minUserPoints1}`);
+  console.log(`  minUserPoints for remaining ${totalAddresses-subscribes} addresses = ${minUserPoints2}`);
   console.log('  Done');
 
   process.chdir(`${__dirname}/..`);

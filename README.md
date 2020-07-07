@@ -130,44 +130,42 @@ To launch a script for sending the generated transactions, there is `npm run loa
 Usage: npm run load -- <options>
 
 Options:
-  -t, --type <type>        transaction type. Possible values: claim, subscribe, burn, transfer
-  -p, --passes [number]    how many passes to perform. 0 for unlimited (default: 1)
-  -l, --tx-limit [number]  how many transactions per one pass (default: 1)
-  -h, --help               display help for command
+  -t, --type <type>           transaction type. Possible values: claim, subscribe, burn, transfer
+  -p, --passes [number]       how many passes to perform. 0 for unlimited (default: 1)
+  -l, --tx-limit [number]     how many transactions per one pass (default: 1)
+  -i, --interval [number]     seconds between passes (default: 5)
+  -q, --queue-limit [number]  receipt queue max size. 0 to ignore receipts (default: 200)
+  -h, --help                  display help for command
 ```
 
 The load script can perform each of four types of transactions written to `users.csv`. When running the script, it only performs transactions of a certain `--type` per the run.
 
-To limit the load by a specified number of transactions, there are two options: `--passes` and `--tx-limit`.
+To limit the load by a specified number of transactions, there are several options: `--passes`, `--tx-limit`, and `--interval`.
 
-For example, we want to perform 1000 `claim` transactions splitting them by 10 passes 100 txs each (this will help keeping transaction queue on the chain clear):
+For example, we want to perform 1000 `claim` transactions splitting them by 10 passes 100 txs each per 5 seconds (this will help keeping transaction queue on the chain clear):
 
 ```bash
-$ npm run load -- --type=claim --passes=10 --tx-limit=100
+$ npm run load -- --type=claim --passes=10 --tx-limit=100 --interval=5
 ```
 
-The script will not send transactions from the next pass until all transactions from the current pass are handled by the chain (i.e. their receipts are received by the script). So, we can regulate the load relaunching the script with different `--tx-limit` parameter.
+The script will not send transactions from the next pass until all transactions from the current pass are sent to the chain. So, we can regulate the load relaunching the script with different `--tx-limit` parameter.
 
-After each pass, transaction results are written to `users.csv` into a separate column and the current performance information is displayed in the console. For example:
+While script's work, transaction results are written to `users.csv` into a separate column and the current performance information is displayed in the console. For example:
 
 ```
-2020-07-06 07:50:37 UTC Reading CSV...
+...
+2020-07-07 13:32:26 UTC Sending 50 'subscribe' transaction(s)...
 
-2020-07-06 07:50:38 UTC Sending 50 'subscribe' transactions...
-2020-07-06 07:50:38 UTC Waiting for mining...
-2020-07-06 07:50:42 UTC Processed (50 succeeded, 0 reverted, 0 failed)
-2020-07-06 07:50:42 UTC Blocks range: 10812249 - 10812249
-2020-07-06 07:50:42 UTC TXs mined since start: 50
-2020-07-06 07:50:42 UTC Cumulative performance: 12.84 txs/sec
+2020-07-07 13:32:27 UTC Current stat: 751 succeeded, 0 reverted, 0 failed
+2020-07-07 13:32:27 UTC Receipt queue size: 149
+2020-07-07 13:32:27 UTC Cumulative performance: 42.84 txs/sec
 
-2020-07-06 07:50:42 UTC Sending 50 'subscribe' transactions...
-2020-07-06 07:50:42 UTC Waiting for mining...
-2020-07-06 07:50:46 UTC Processed (50 succeeded, 0 reverted, 0 failed)
-2020-07-06 07:50:46 UTC Blocks range: 10812250 - 10812250
-2020-07-06 07:50:46 UTC TXs mined since start: 100
-2020-07-06 07:50:46 UTC Cumulative performance: 11.61 txs/sec
+2020-07-07 13:32:27 UTC Sending 50 'subscribe' transaction(s)...
 
-2020-07-06 07:50:47 UTC Finished
+2020-07-07 13:32:28 UTC Current stat: 801 succeeded, 0 reverted, 0 failed
+2020-07-07 13:32:28 UTC Receipt queue size: 149
+2020-07-07 13:32:28 UTC Cumulative performance: 42.15 txs/sec
+...
 ```
 
 There are four columns appended to the CSV by the load script, one column for each transaction type:
