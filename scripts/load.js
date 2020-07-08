@@ -435,9 +435,5 @@ function log(message, emptyPreLine) {
 }
 
 function sleep(ms) {
-  return new Promise((resolve, reject) => {
-    setTimeout(() => {
-      reject(new Error('sleepError'));
-    }, ms);
-  });
+  return new Promise(resolve => setTimeout(resolve, ms));
 }
