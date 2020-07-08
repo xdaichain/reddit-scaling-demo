@@ -1,6 +1,7 @@
 require('dotenv').config();
 
 const assert = require('assert');
+const Timeout = require('await-timeout');
 const { program } = require('commander');
 const constants = require('./constants');
 const Queue = require('./queue');
@@ -81,6 +82,7 @@ async function main() {
   }
   eval(program.type)();
   await csvSavePromise;
+  process.exit();
 }
 
 async function claim() {
@@ -139,24 +141,26 @@ async function sendTXs(i, maxIterations) {
   }
 
   if (limitReceiptQueue > 0) {
-    while (receiptQueue.getLength() > limitReceiptQueue) {
+    while (receiptQueue.getLength() > limitReceiptQueue && !interrupt) {
       await sleep(10);
     }
   }
 
-  log(`Sending ${txs.length} '${program.type}' transaction(s)...`, true);
-  for (let t = 0; t < txs.length; t++) {
-    const userIndex = txs[t].i;
-    let p = web3.eth.sendSignedTransaction(txs[t].tx);
-    p.catch(() => {});
-    if (limitReceiptQueue > 0) {
-      receiptQueue.enqueue({ i: userIndex, p });
-    } else {
-      switch (program.type) {
-      case 'claim': setUserClaimed(userIndex, true); break;
-      case 'subscribe': setUserSubscribed(userIndex, true); break;
-      case 'burn': setUserBurned(userIndex, true); break;
-      case 'transfer': setUserTransferred(userIndex, true); break;
+  if (!interrupt) {
+    log(`Sending ${txs.length} '${program.type}' transaction(s)...`, true);
+    for (let t = 0; t < txs.length; t++) {
+      const userIndex = txs[t].i;
+      let p = web3.eth.sendSignedTransaction(txs[t].tx);
+      p.catch(() => {});
+      if (limitReceiptQueue > 0) {
+        receiptQueue.enqueue({ i: userIndex, p });
+      } else {
+        switch (program.type) {
+        case 'claim': setUserClaimed(userIndex, true); break;
+        case 'subscribe': setUserSubscribed(userIndex, true); break;
+        case 'burn': setUserBurned(userIndex, true); break;
+        case 'transfer': setUserTransferred(userIndex, true); break;
+        }
       }
     }
   }
@@ -191,6 +195,9 @@ async function handleReceipts() {
         await sleep(1);
         continue;
       }
+    } else if (interrupt) {
+      printStatistics();
+      break;
     }
 
     const userIndex = item.i;
@@ -200,7 +207,7 @@ async function handleReceipts() {
     let receipt = null;
     for (let t = 1; t <= maxTries; t++) {
       try {
-        receipt = await item.p;
+        receipt = await Timeout.wrap(item.p, 10000, 'timeout');
       } catch (e) {
         log(`  Error for ${user(userIndex).account}: ${e.message}`);
         if (e.message.includes('reverted')) {
@@ -226,7 +233,8 @@ async function handleReceipts() {
           try {
             let p = subredditPointsContract.methods.balanceOf(userAddress).call();
             p.catch(() => {});
-            claimed = ('0' !== await p);
+            const balance = await Timeout.wrap(p, 10000, 'timeout');
+            claimed = ('0' !== balance);
           } catch (e) {
             log(`  Cannot get user balance for ${userAddress}. Error: ${e.message}`);
             if (t < maxTries && !interrupt) {
@@ -252,7 +260,8 @@ async function handleReceipts() {
           try {
             let p = subscriptionsContract.methods.expiration(userAddress).call();
             p.catch(() => {});
-            subscribed = ('0' !== await p);
+            const expiration = await Timeout.wrap(p, 10000, 'timeout');
+            subscribed = ('0' !== expiration);
           } catch (e) {
             log(`  Cannot get expiration date for ${userAddress}. Error: ${e.message}`);
             if (t < maxTries && !interrupt) {
@@ -426,5 +435,9 @@ function log(message, emptyPreLine) {
 }
 
 function sleep(ms) {
-  return new Promise(resolve => setTimeout(resolve, ms));
+  return new Promise((resolve, reject) => {
+    setTimeout(() => {
+      reject(new Error('sleepError'));
+    }, ms);
+  });
 }
