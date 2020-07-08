@@ -396,8 +396,8 @@ function csvLoad() {
 }
 
 async function csvSave() {
-  await csvSavePromise;
-  csvSavePromise = new Promise((resolve, reject) => {
+  await csvSavePromise; // ensure previous save is complete
+  csvSavePromise = new Promise(resolve => {
     setTimeout(() => {
       log('Saving CSV...', true);
       fs.writeFileSync(filepath, users.join('\n'), 'utf8');
