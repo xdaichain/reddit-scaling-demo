@@ -31,6 +31,7 @@ let startTimestamp;
 let users = [];
 let txs = [];
 let sendingFinished = false;
+let receiptsFinished = false;
 let interrupt = false;
 let successCount = 0;
 let revertCount = 0;
@@ -77,11 +78,28 @@ async function main() {
   csvLoad();
 
   startTimestamp = process.hrtime();
+
+  // Start receipts handling thread
   if (limitReceiptQueue > 0) {
     setTimeout(handleReceipts, 0);
+  } else {
+    receiptsFinished = true;
   }
-  eval(program.type)();
+  
+  // Sending transactions
+  await eval(program.type)();
+  sendingFinished = true;
+
+  // Transactions are sent. Now, waiting for the `handleReceipts` thread to finish
+  while (!receiptsFinished) {
+    await sleep(10);
+  }
+
+  // All jobs are finished. Ensure csv file saving finished
   await csvSavePromise;
+
+  // Force exit to prevent awaiting for `handleReceipts` promises
+  // which could hang due to network reasons
   process.exit();
 }
 
@@ -172,7 +190,6 @@ async function sendTXs(i, maxIterations) {
   }
 
   if ((limitPasses > 0 && ++passesPerformed >= limitPasses) || interrupt) {
-    sendingFinished = true;
     return false;
   }
 
@@ -312,6 +329,8 @@ async function handleReceipts() {
   await csvSavePromise;
 
   log('Finished');
+
+  receiptsFinished = true;
 }
 
 function user(userIndex) {
