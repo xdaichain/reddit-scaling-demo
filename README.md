@@ -178,7 +178,9 @@ Each column can have an empty value or the boolean value of `Y` or `N`. For exam
 
 For the specified `--type` the load script ignores the rows in `users.csv` which has already been set to `Y` or `N` for the corresponding column, and continues to send transactions for the rows that have an empty value for the corresponding column. That way, the load script can be launched several times (until it fills the corresponding column for all the rows).
 
-The load script can be stopped by `CTRL+C` or through `SIGTERM` signal with `kill -15 <pid>` command if needed: in this case, it completes the latest batch of transactions, saves the latest results to `users.csv`, and then terminates.
+The transactions sending can be stopped by `CTRL+C` or through `SIGINT` signal with `kill -2 <pid>` command if needed: in this case, it completes sending the latest batch of transactions, waits for the receipt queue is fully handled, and then terminates. It is the most safest way to stop the script.
+
+If you need to stop the load script completely, try `CTRL+C` twice or send `SIGTERM` signal with `kill -15 <pid>` command: it will complete sending the latest batch of transactions, interrupt receipt queue handling, save the latest known transaction results to the csv file, and then terminate. Note that it won't write to the CSV the transaction results from the remaining queue, so SIGTERM can lead to loosing some tx results.
 
 Load transactions should be performed in the following order (because the prepared transactions in `users.csv` are signed with an explicit `nonce` which is defined based on the order):
 - claim

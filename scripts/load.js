@@ -33,6 +33,7 @@ let txs = [];
 let sendingFinished = false;
 let receiptsFinished = false;
 let interrupt = false;
+let interruptReceipts = false;
 let successCount = 0;
 let revertCount = 0;
 let errorCount = 0;
@@ -212,7 +213,7 @@ async function handleReceipts() {
         await sleep(1);
         continue;
       }
-    } else if (interrupt) {
+    } else if (interruptReceipts) {
       printStatistics();
       break;
     }
@@ -229,10 +230,10 @@ async function handleReceipts() {
         log(`  Error for ${user(userIndex).account}: ${e.message}`);
         if (e.message.includes('reverted')) {
           receipt = { status: false };
-        } else if (t < maxTries && !interrupt) {
+        } else if (t < maxTries && !interruptReceipts) {
           log('  Try again in 3 seconds...');
           await sleep(3000);
-        } else if (interrupt) {
+        } else if (interruptReceipts) {
           break;
         }
       }
@@ -254,10 +255,10 @@ async function handleReceipts() {
             claimed = ('0' !== balance);
           } catch (e) {
             log(`  Cannot get user balance for ${userAddress}. Error: ${e.message}`);
-            if (t < maxTries && !interrupt) {
+            if (t < maxTries && !interruptReceipts) {
               log('  Try again in 3 seconds...');
               await sleep(3000);
-            } else if (interrupt) {
+            } else if (interruptReceipts) {
               break;
             }
           }
@@ -281,10 +282,10 @@ async function handleReceipts() {
             subscribed = ('0' !== expiration);
           } catch (e) {
             log(`  Cannot get expiration date for ${userAddress}. Error: ${e.message}`);
-            if (t < maxTries && !interrupt) {
+            if (t < maxTries && !interruptReceipts) {
               log('  Try again in 3 seconds...');
               await sleep(3000);
-            } else if (interrupt) {
+            } else if (interruptReceipts) {
               break;
             }
           }
@@ -412,9 +413,15 @@ function processExited() {
   }
 }
 
-function processInterrupt() {
-  log('Terminating the script, please wait...', true);
-  interrupt = true;
+function processInterrupt(signal) {
+  if (signal == 'SIGINT') {
+    log('Terminating txs sending. Receipt queue will still be being handled. Please wait...', true);
+    interrupt = true;
+  } else if (signal == 'SIGTERM') {
+  	log('Terminating txs sending and receipt queue handling. Please wait...', true);
+    interrupt = true;
+    interruptReceipts = true;
+  }
 }
 
 // Ensures the load script is working alone
