@@ -1,0 +1,17 @@
+version: '3.7'
+services:
+  demo:
+    init: true
+    container_name: reddit-scaling-demo
+    image: varasev/reddit-scaling-demo:latest
+    user: root
+    command:
+      npm run load -- --help
+    volumes:
+      - ./.env:/demo/.env
+      - ./data:/demo/data
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "10"
