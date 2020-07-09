@@ -42,12 +42,6 @@ let csvSavePromise;
 main();
 
 async function main() {
-  while(true) {
-  	await sleep(1000);
-  	log('sleep');
-  }
-  return;
-
   program.name("npm run load").usage("-- <options>");
   program.requiredOption('-t, --type <type>', 'transaction type. Possible values: claim, subscribe, burn, transfer');
   program.option('-p, --passes [number]', 'how many passes to perform. 0 for unlimited', limitPasses);
