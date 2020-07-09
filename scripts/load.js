@@ -101,7 +101,9 @@ async function main() {
 
   // Force exit to prevent awaiting for `handleReceipts` promises
   // which could hang due to network reasons
-  process.exit();
+  if (limitReceiptQueue > 0) {
+    process.exit();
+  }
 }
 
 async function claim() {
