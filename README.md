@@ -135,6 +135,7 @@ Options:
   -l, --tx-limit [number]     how many transactions per one pass (default: 1)
   -i, --interval [number]     seconds between passes (default: 5)
   -q, --queue-limit [number]  receipt queue max size. 0 to ignore receipts (default: 200)
+  -s, --stat                  shows how many txs of each type were sent (calculates Y/N flags from users.csv)
   -h, --help                  display help for command
 ```
 

@@ -43,12 +43,21 @@ main();
 
 async function main() {
   program.name("npm run load").usage("-- <options>");
-  program.requiredOption('-t, --type <type>', 'transaction type. Possible values: claim, subscribe, burn, transfer');
+  program.option('-t, --type <type>', 'transaction type. Possible values: claim, subscribe, burn, transfer');
   program.option('-p, --passes [number]', 'how many passes to perform. 0 for unlimited', limitPasses);
   program.option('-l, --tx-limit [number]', 'how many transactions per one pass', onePassTxLimit);
   program.option('-i, --interval [number]', 'seconds between passes', onePassInterval);
   program.option('-q, --queue-limit [number]', 'receipt queue max size. 0 to ignore receipts', limitReceiptQueue);
+  program.option('-s, --stat', 'shows how many txs of each type were sent (calculates Y/N flags from users.csv)');
   program.parse(process.argv);
+
+  if (program.stat) {
+  	csvLoad();
+    console.log();
+    printFlags();
+    console.log();
+  	return;
+  }
 
   if (['claim', 'subscribe', 'burn', 'transfer'].indexOf(program.type) < 0) {
     program.help();
@@ -379,6 +388,24 @@ function _setTxStatus(userIndex, status, columnIndex) {
   } else {
     revertCount++;
   }
+}
+
+function printFlags() {
+  let claims = 0;
+  let subscriptions = 0;
+  let burns = 0;
+  let transfers = 0;
+  for (let i = 0; i < users.length; i++) {
+    const { claimed, subscribed, burned, transferred } = user(i);
+    if (claimed) claims++;
+    if (subscribed) subscriptions++;
+    if (burned) burns++;
+    if (transferred) transfers++;
+  }
+  console.log(`Claims:        ${claims}`);
+  console.log(`Subscriptions: ${subscriptions}`);
+  console.log(`Burns:         ${burns}`);
+  console.log(`Transfers:     ${transfers}`);
 }
 
 function printStatistics() {
