@@ -20,7 +20,7 @@ web3.eth.transactionBlockTimeout = 20;
 web3.eth.transactionConfirmationBlocks = 1;
 web3.eth.transactionPollingTimeout = 300;
 
-const filepath = `${__dirname}/../users.csv`;
+const filepath = `${__dirname}/../data/users.csv`;
 let receiptQueue = new Queue();
 let onePassTxLimit = 1; // how many transactions per one pass
 let onePassInterval = 5; // interval between passes (in seconds)
@@ -42,6 +42,12 @@ let csvSavePromise;
 main();
 
 async function main() {
+  while(true) {
+  	await sleep(1000);
+  	log('sleep');
+  }
+  return;
+
   program.name("npm run load").usage("-- <options>");
   program.requiredOption('-t, --type <type>', 'transaction type. Possible values: claim, subscribe, burn, transfer');
   program.option('-p, --passes [number]', 'how many passes to perform. 0 for unlimited', limitPasses);
@@ -408,7 +414,7 @@ async function csvSave() {
 
 function processExited() {
   try {
-    fs.unlinkSync(`${__dirname}/tmp.pid`);
+    fs.unlinkSync(`${__dirname}/../data/tmp.pid`);
   } catch (e) {
   }
 }
@@ -427,9 +433,10 @@ function processInterrupt(signal) {
 // Ensures the load script is working alone
 function processUnique() {
   let existingPID = 0;
+  const pidFilepath = `${__dirname}/../data/tmp.pid`;
 
   try {
-    existingPID = fs.readFileSync(`${__dirname}/tmp.pid`, 'utf8');
+    existingPID = fs.readFileSync(pidFilepath, 'utf8');
   } catch (e) {
   }
 
@@ -437,7 +444,7 @@ function processUnique() {
     log(`The load script is already working. PID: ${existingPID}`);
     process.exit();
   } else {
-    fs.writeFileSync(`${__dirname}/tmp.pid`, process.pid, 'utf8');
+    fs.writeFileSync(pidFilepath, process.pid, 'utf8');
     process.on('exit', processExited);
     process.on('uncaughtException', processExited);
     process.on('SIGINT', processInterrupt);

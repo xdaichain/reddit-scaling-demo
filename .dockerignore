@@ -1,4 +1,5 @@
-/node_modules
+data
+node_modules
 .editorconfig
 .env
 .gitattributes
@@ -6,6 +7,3 @@
 Dockerfile
 example.env
 README.md
-users*.csv
-tmp.*
-*/tmp.*

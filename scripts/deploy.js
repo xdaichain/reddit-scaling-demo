@@ -183,7 +183,7 @@ async function signAndSend(method, to) {
 
 function getTotalKarma() {
   let totalKarma = 0;
-  const lines = fs.readFileSync(`${__dirname}/../users.csv`, 'utf8').split('\n');
+  const lines = fs.readFileSync(`${__dirname}/../data/users.csv`, 'utf8').split('\n');
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i].split(',');
     const karma = line[2] - 0;

@@ -18,7 +18,7 @@ const subredditPointsContract = new web3.eth.Contract(subredditPointsABI, proces
 main();
 
 async function main() {
-  const filepath = `${__dirname}/../users.csv`;
+  const filepath = `${__dirname}/../data/users.csv`;
   let users = fs.readFileSync(filepath, 'utf8').split('\n');
   const chainId = await web3.eth.getChainId();
 

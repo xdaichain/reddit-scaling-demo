@@ -26,7 +26,7 @@ Also, there are a few scripts in the `scripts` directory which allow to:
 
 This repo can be used on a machine having at least 1Gb free RAM since the scripts require big enough RAM to handle a big CSV file containing the list of users (addresses and private keys) and their prepared transactions. We didn't implement working with DB for this demo for simplicity.
 
-First, we need to do some configs in `.env` file.
+First, we need to do some configs in the root `.env` file.
 
 ## Step 1. Configuration: prepare admins and owner keys and addresses
 
@@ -63,7 +63,7 @@ Run the following command:
 $ npm run generate-users
 ```
 
-It will create `users.csv` file in the root of the repo with `100,000` rows and the following columns (separated by a comma):
+It will create `users.csv` file in the `data` directory of the repo with `100,000` rows and the following columns (separated by a comma):
 
 ```
 account,privateKey,karma,signature

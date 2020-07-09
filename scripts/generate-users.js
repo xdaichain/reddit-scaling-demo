@@ -22,7 +22,7 @@ async function main() {
   const chainId = await web3.eth.getChainId();
 
   console.log('Generate unique addresses...');
-  const tmpFilepath = `${__dirname}/tmp.users.${chainId}`;
+  const tmpFilepath = `${__dirname}/../data/tmp.users.${chainId}`;
   let addressGenerated = {};
   let lines = [];
   try {
@@ -106,7 +106,7 @@ async function main() {
 
   process.chdir(`${__dirname}/..`);
 
-  const filepath = `${process.cwd()}/users.csv`;
+  const filepath = `${process.cwd()}/data/users.csv`;
   fs.writeFileSync(filepath, lines.join('\n'), 'utf8');
 
   console.log(`Finished. Users are saved to ${filepath}`);
