@@ -1,0 +1,11 @@
+/node_modules
+.editorconfig
+.env
+.gitattributes
+.gitignore
+Dockerfile
+example.env
+README.md
+users*.csv
+tmp.*
+*/tmp.*
