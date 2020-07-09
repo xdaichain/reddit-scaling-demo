@@ -52,11 +52,10 @@ async function main() {
   program.parse(process.argv);
 
   if (program.stat) {
-  	csvLoad();
-    console.log();
+    csvLoad();
     printFlags();
     console.log();
-  	return;
+    return;
   }
 
   if (['claim', 'subscribe', 'burn', 'transfer'].indexOf(program.type) < 0) {
@@ -107,6 +106,8 @@ async function main() {
 
   // All jobs are finished. Ensure csv file saving finished
   await csvSavePromise;
+
+  printFlags()
 
   // Force exit to prevent awaiting for `handleReceipts` promises
   // which could hang due to network reasons
@@ -402,10 +403,10 @@ function printFlags() {
     if (burned) burns++;
     if (transferred) transfers++;
   }
-  console.log(`Claims:        ${claims}`);
-  console.log(`Subscriptions: ${subscriptions}`);
-  console.log(`Burns:         ${burns}`);
-  console.log(`Transfers:     ${transfers}`);
+  log(`Claims:        ${claims}`, true);
+  log(`Subscriptions: ${subscriptions}`);
+  log(`Burns:         ${burns}`);
+  log(`Transfers:     ${transfers}`);
 }
 
 function printStatistics() {
