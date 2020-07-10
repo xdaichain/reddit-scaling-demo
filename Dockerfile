@@ -8,4 +8,5 @@ COPY package*.json ./
 
 RUN npm i
 
-CMD ["npm","run","load","--","--help"]
+ENTRYPOINT ["npm","run"]
+CMD ["load","--","--help"]
