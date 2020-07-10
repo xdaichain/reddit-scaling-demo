@@ -6,7 +6,8 @@
     "deploy": "node scripts/deploy.js",
     "generate-users": "node scripts/generate-users.js",
     "generate-txs": "node scripts/generate-txs.js",
-    "load": "node scripts/load.js"
+    "load": "node scripts/load.js",
+    "recheck": "node scripts/recheck.js"
   },
   "author": "",
   "license": "ISC",
