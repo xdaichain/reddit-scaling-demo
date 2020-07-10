@@ -4,7 +4,9 @@ const assert = require('assert');
 const Timeout = require('await-timeout');
 const { program } = require('commander');
 const constants = require('./constants');
+const http = require('http');
 const Queue = require('./queue');
+const { URL } = require('url');
 const Web3 = require('web3');
 const fs = require('fs');
 const web3 = new Web3(process.env.RPC);
@@ -38,6 +40,15 @@ let successCount = 0;
 let revertCount = 0;
 let errorCount = 0;
 let csvSavePromise;
+
+const rpcUrl = new URL(process.env.RPC);
+const httpOptions = {
+  host: rpcUrl.hostname,
+  path: rpcUrl.pathname,
+  port: rpcUrl.port,
+  method: 'POST',
+  headers: {'Content-Type': 'application/json'}
+};
 
 main();
 
@@ -111,9 +122,7 @@ async function main() {
 
   // Force exit to prevent awaiting for `handleReceipts` promises
   // which could hang due to network reasons
-  if (limitReceiptQueue > 0) {
-    process.exit();
-  }
+  process.exit();
 }
 
 async function claim() {
@@ -181,11 +190,20 @@ async function sendTXs(i, maxIterations) {
     log(`Sending ${txs.length} '${program.type}' transaction(s)...`, true);
     for (let t = 0; t < txs.length; t++) {
       const userIndex = txs[t].i;
-      let p = web3.eth.sendSignedTransaction(txs[t].tx);
-      p.catch(() => {});
       if (limitReceiptQueue > 0) {
+      	let p = web3.eth.sendSignedTransaction(txs[t].tx);
+      	p.catch(() => {});
         receiptQueue.enqueue({ i: userIndex, p });
       } else {
+        await new Promise(resolve => {
+          let req = http.request(httpOptions);
+          req.write(`{"jsonrpc":"2.0","method":"eth_sendRawTransaction","params":["${txs[t].tx}"],"id":0}`, 'utf8', () => {
+            req.socket.end();
+            req = null;
+            resolve();
+          });
+          req.end();
+        });
         switch (program.type) {
         case 'claim': setUserClaimed(userIndex, true); break;
         case 'subscribe': setUserSubscribed(userIndex, true); break;
