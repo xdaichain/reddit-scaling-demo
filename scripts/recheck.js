@@ -58,8 +58,20 @@ async function main() {
       }
     }
   }
+
+  printFlags();
   
   csvSave();
+}
+
+function user(userIndex) {
+  const user = users[userIndex].split(',');
+  return {
+    claimed: user[8],
+    subscribed: user[9],
+    burned: user[10],
+    transferred: user[11]
+  }
 }
 
 function setUserClaimed(userIndex, claimed) {
@@ -91,4 +103,22 @@ function log(message, emptyPreLine) {
     console.log('');
   }
   console.log(message);
+}
+
+function printFlags() {
+  let claims = 0;
+  let subscriptions = 0;
+  let burns = 0;
+  let transfers = 0;
+  for (let i = 0; i < users.length; i++) {
+    const { claimed, subscribed, burned, transferred } = user(i);
+    if (claimed) claims++;
+    if (subscribed) subscriptions++;
+    if (burned) burns++;
+    if (transferred) transfers++;
+  }
+  log(`Claims:        ${claims}`, true);
+  log(`Subscriptions: ${subscriptions}`);
+  log(`Burns:         ${burns}`);
+  log(`Transfers:     ${transfers}`);
 }
