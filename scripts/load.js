@@ -199,10 +199,10 @@ async function sendTXs(i, maxIterations) {
 
   if (limitReceiptQueue === 0) {
     log(`Total sent: ${successCount}`);
-    await csvSave();
   }
 
   if ((limitPasses > 0 && ++passesPerformed >= limitPasses) || interrupt) {
+    await csvSave();
     return false;
   }
 
@@ -448,7 +448,7 @@ function processInterrupt(signal) {
     log('Terminating txs sending. Receipt queue will still be being handled. Please wait...', true);
     interrupt = true;
   } else if (signal == 'SIGTERM') {
-  	log('Terminating txs sending and receipt queue handling. Please wait...', true);
+    log('Terminating txs sending and receipt queue handling. Please wait...', true);
     interrupt = true;
     interruptReceipts = true;
   }
