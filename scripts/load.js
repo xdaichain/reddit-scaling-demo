@@ -22,7 +22,8 @@ web3.eth.transactionBlockTimeout = 20;
 web3.eth.transactionConfirmationBlocks = 1;
 web3.eth.transactionPollingTimeout = 300;
 
-const filepath = `${__dirname}/../data/users.csv`;
+const csvFilepath = `${__dirname}/../data/users.csv`;
+const logFilepath = `${__dirname}/../data/load.log`;
 let receiptQueue = new Queue();
 let onePassTxLimit = 1; // how many transactions per one pass
 let onePassInterval = 5; // interval between passes (in seconds)
@@ -436,11 +437,13 @@ function printStatistics() {
   log(`Current stat: ${successCount} succeeded, ${revertCount} reverted, ${errorCount} failed`, true);
   log(`Receipt queue size: ${receiptQueue.getLength()}`)
   log(`Cumulative performance: ${performance} txs/sec`);
+
+  printFlags();
 }
 
 function csvLoad() {
   log('Reading CSV...', true);
-  users = fs.readFileSync(filepath, 'utf8').split('\n');
+  users = fs.readFileSync(csvFilepath, 'utf8').split('\n');
 }
 
 async function csvSave() {
@@ -448,7 +451,7 @@ async function csvSave() {
   csvSavePromise = new Promise(resolve => {
     setTimeout(() => {
       log('Saving CSV...', true);
-      fs.writeFileSync(filepath, users.join('\n'), 'utf8');
+      fs.writeFileSync(csvFilepath, users.join('\n'), 'utf8');
       resolve();
     }, 0); // run CSV saving in a separate thread to save time
   });
@@ -505,8 +508,11 @@ function log(message, emptyPreLine) {
   const time = `${year}-${month}-${day} ${hours}:${minutes}:${seconds} UTC`;
   if (emptyPreLine) {
     console.log('');
+    fs.appendFileSync(logFilepath, '\n', 'utf8');
   }
-  console.log(`${time} ${message}`);
+  const line = `${time} ${message}`;
+  console.log(line);
+  fs.appendFileSync(logFilepath, `${line}\n`, 'utf8');
 }
 
 function sleep(ms) {

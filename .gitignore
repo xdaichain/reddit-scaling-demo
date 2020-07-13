@@ -1,3 +1,4 @@
+load.log
 users*.csv
 node_modules
 tmp.*
