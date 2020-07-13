@@ -1,5 +1,6 @@
 require('dotenv').config();
 
+const constants = require('./constants');
 const { program } = require('commander');
 const Web3 = require('web3');
 const fs = require('fs');
@@ -18,12 +19,12 @@ main();
 
 async function main() {
   program.name("npm run recheck").usage("-- <options>");
-  program.option('-t, --type <type>', 'transaction type. Possible values: claim, subscribe');
+  program.option('-t, --type <type>', 'transaction type. Possible values: claim, subscribe, burn, transfer');
   program.option('-s, --start <number>', 'start index');
   program.option('-f, --finish <number>', 'end index');
   program.parse(process.argv);
 
-  if (['claim', 'subscribe'].indexOf(program.type) < 0) {
+  if (['claim', 'subscribe', 'burn', 'transfer'].indexOf(program.type) < 0) {
     program.help();
   }
 
@@ -56,6 +57,38 @@ async function main() {
       } else {
         setUserSubscribed(i, true);
       }
+    } else if (program.type === 'burn') {
+      if (i < constants.TOTAL_BURN_TRANSACTIONS) {
+        let nonceShouldBe;
+        if (i < constants.TOTAL_SUBSCRIBE_TRANSACTIONS) {
+          nonceShouldBe = 2;
+        } else {
+          nonceShouldBe = 1;
+        }
+        const nonce = await web3.eth.getTransactionCount(account);
+        if (nonce > nonceShouldBe) {
+          setUserBurned(i, true);
+        } else {
+          setUserBurned(i, false);
+        }
+      } else {
+        setUserBurned(i, false);
+      }
+    } else if (program.type === 'transfer') {
+      let nonceShouldBe;
+      if (i < constants.TOTAL_SUBSCRIBE_TRANSACTIONS) {
+        nonceShouldBe = 3;
+      } else if (i < constants.TOTAL_BURN_TRANSACTIONS) {
+        nonceShouldBe = 2;
+      } else {
+        nonceShouldBe = 1;
+      }
+      const nonce = await web3.eth.getTransactionCount(account);
+      if (nonce > nonceShouldBe) {
+        setUserTransferred(i, true);
+      } else {
+        setUserTransferred(i, false);
+      }
     }
   }
 
@@ -80,6 +113,14 @@ function setUserClaimed(userIndex, claimed) {
 
 function setUserSubscribed(userIndex, subscribed) {
   _setTxStatus(userIndex, subscribed, 9);
+}
+
+function setUserBurned(userIndex, burned) {
+  _setTxStatus(userIndex, burned, 10);
+}
+
+function setUserTransferred(userIndex, transferred) {
+  _setTxStatus(userIndex, transferred, 11);
 }
 
 function _setTxStatus(userIndex, status, columnIndex) {
