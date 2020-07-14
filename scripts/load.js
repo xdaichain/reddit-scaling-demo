@@ -40,7 +40,7 @@ let interruptReceipts = false;
 let successCount = 0;
 let revertCount = 0;
 let errorCount = 0;
-let csvSavePromise;
+let csvSavePromise = null;
 
 const rpcUrl = new URL(process.env.RPC);
 const httpOptions = {
@@ -117,7 +117,10 @@ async function main() {
   }
 
   // All jobs are finished. Ensure csv file saving finished
-  await csvSavePromise;
+  if (csvSavePromise !== null) {
+    await csvSavePromise;
+    csvSavePromise = null;
+  }
 
   // Force exit to prevent awaiting for `handleReceipts` promises
   // which could hang due to network reasons
@@ -359,7 +362,10 @@ async function handleReceipts() {
   }
 
   await csvSave();
-  await csvSavePromise;
+  if (csvSavePromise !== null) {
+    await csvSavePromise;
+    csvSavePromise = null;
+  }
 
   log('Finished');
 
@@ -452,16 +458,20 @@ function printStatistics() {
 }
 
 function csvLoad() {
-  log('Reading CSV...', true);
+  log('Loading CSV...', true);
   users = fs.readFileSync(csvFilepath, 'utf8').split('\n');
+  log('CSV loaded');
 }
 
 async function csvSave() {
-  await csvSavePromise; // ensure previous save is complete
+  if (csvSavePromise !== null) {
+    await csvSavePromise; // ensure previous save is complete
+  }
   csvSavePromise = new Promise(resolve => {
     setTimeout(() => {
       log('Saving CSV...', true);
       fs.writeFileSync(csvFilepath, users.join('\n'), 'utf8');
+      log('CSV saved');
       resolve();
     }, 0); // run CSV saving in a separate thread to save time
   });
