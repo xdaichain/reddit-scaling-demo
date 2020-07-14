@@ -216,6 +216,9 @@ async function sendTXs(i, maxIterations) {
 
   if (limitReceiptQueue === 0) {
     log(`Total sent: ${successCount}`);
+    if (limitPasses > 0) {
+      log(`Sending progress: ${Math.floor(successCount / (limitPasses * onePassTxLimit) * 100)}%`);
+    }
   }
 
   if ((limitPasses > 0 && ++passesPerformed >= limitPasses) || interrupt) {
@@ -431,13 +434,17 @@ function printStatistics() {
   const timeDiffSeconds = (timeDiff[0] * 1e9 + timeDiff[1]) / 1e9;
   const totalTxsMined = successCount + revertCount;
   const performance = Math.round((totalTxsMined / timeDiffSeconds + Number.EPSILON) * 100) / 100;
-  const totalSent = successCount + revertCount + errorCount + receiptQueue.getLength();
+  const queueSize = receiptQueue.getLength();
+  const totalSent = successCount + revertCount + errorCount + queueSize;
 
   log(`Current stat: ${successCount} succeeded, ${revertCount} reverted, ${errorCount} failed`, true);
-  log(`Receipt queue size: ${receiptQueue.getLength()}`);
+  log(`Receipt queue size: ${queueSize}`);
   log(`Total sent: ${totalSent}`);
   if (limitPasses > 0) {
     log(`Sending progress: ${Math.floor(totalSent / (limitPasses * onePassTxLimit) * 100)}%`);
+  }
+  if (totalSent > 0) {
+    log(`Receipts progress: ${Math.floor((totalSent - queueSize) / totalSent * 100)}%`);
   }
   log(`Cumulative performance: ${performance} txs/sec`);
 
