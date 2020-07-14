@@ -159,12 +159,16 @@ While script's work, transaction results are written to `users.csv` into a separ
 
 2020-07-07 13:32:27 UTC Current stat: 751 succeeded, 0 reverted, 0 failed
 2020-07-07 13:32:27 UTC Receipt queue size: 149
+2020-07-07 13:32:27 UTC Total sent: 900
+2020-07-07 13:32:27 UTC Sending progress: 90%
 2020-07-07 13:32:27 UTC Cumulative performance: 42.84 txs/sec
 
 2020-07-07 13:32:27 UTC Sending 50 'subscribe' transaction(s)...
 
 2020-07-07 13:32:28 UTC Current stat: 801 succeeded, 0 reverted, 0 failed
 2020-07-07 13:32:28 UTC Receipt queue size: 149
+2020-07-07 13:32:28 UTC Total sent: 950
+2020-07-07 13:32:28 UTC Sending progress: 95%
 2020-07-07 13:32:28 UTC Cumulative performance: 42.15 txs/sec
 ...
 ```

@@ -119,8 +119,6 @@ async function main() {
   // All jobs are finished. Ensure csv file saving finished
   await csvSavePromise;
 
-  printFlags()
-
   // Force exit to prevent awaiting for `handleReceipts` promises
   // which could hang due to network reasons
   process.exit();
@@ -433,9 +431,14 @@ function printStatistics() {
   const timeDiffSeconds = (timeDiff[0] * 1e9 + timeDiff[1]) / 1e9;
   const totalTxsMined = successCount + revertCount;
   const performance = Math.round((totalTxsMined / timeDiffSeconds + Number.EPSILON) * 100) / 100;
+  const totalSent = successCount + revertCount + errorCount + receiptQueue.getLength();
 
   log(`Current stat: ${successCount} succeeded, ${revertCount} reverted, ${errorCount} failed`, true);
-  log(`Receipt queue size: ${receiptQueue.getLength()}`)
+  log(`Receipt queue size: ${receiptQueue.getLength()}`);
+  log(`Total sent: ${totalSent}`);
+  if (limitPasses > 0) {
+    log(`Sending progress: ${Math.floor(totalSent / (limitPasses * onePassTxLimit) * 100)}%`);
+  }
   log(`Cumulative performance: ${performance} txs/sec`);
 
   printFlags();
