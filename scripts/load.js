@@ -109,6 +109,7 @@ async function main() {
   
   // Sending transactions
   await eval(program.type)();
+  log('Sending finished');
   sendingFinished = true;
 
   // Transactions are sent. Now, waiting for the `handleReceipts` thread to finish
@@ -124,6 +125,7 @@ async function main() {
 
   // Force exit to prevent awaiting for `handleReceipts` promises
   // which could hang due to network reasons
+  log('Everything finished');
   process.exit();
 }
 
@@ -367,7 +369,7 @@ async function handleReceipts() {
     csvSavePromise = null;
   }
 
-  log('Finished');
+  log('Receipts handling finished');
 
   receiptsFinished = true;
 }
