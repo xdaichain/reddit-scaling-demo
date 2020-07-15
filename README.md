@@ -2,6 +2,8 @@
 
 This repo contains smart contracts and scripts for demo of loading the xDai sidechain by transactions within [Reddit scaling competition](https://www.reddit.com/r/ethereum/comments/hbjx25/the_great_reddit_scaling_bakeoff/).
 
+_Note: To use dockerized commands listed below, please see https://github.com/xdaichain/reddit-scaling-demo/tree/docker-compose#readme_
+
 There are four smart contracts representing a subreddit in the `contracts` directory. This demo assumes we only demonstrate the load to one subreddit.
 - `SubredditPoints_v0`. The implementation for the subreddit points contract.
 - `Distributions_v0`. The implementation for the distribution contract.
