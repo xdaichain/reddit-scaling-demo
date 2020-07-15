@@ -197,6 +197,38 @@ Load transactions should be performed in the following order (because the prepar
 
 So, during the demo, first, the users claim tokens, then part of them subscribe to subreddit membership, then part of them burn their tokens, and then the users transfer tokens to each other.
 
+### Methods of sending transactions
+
+There are two approaches of sending transactions by the load script:
+
+**1. Send a batch of transactions to RPC and wait for their receipts.**
+
+This method is turned on by default (when `--queue-limit` CLI option is set to a non-zero value). It's used for xDai chain with its 5-seconds blocks.
+
+The load script reads transactions by portions (which size is defined by `--tx-limit` CLI option) from the `users.csv` and sends them to the RPC using [`web3.eth.sendSignedTransaction`](https://web3js.readthedocs.io/en/v1.2.9/web3-eth.html#sendsignedtransaction) function. It occurs every `--interval` seconds until the number of `--passes` is reached or `SIGINT` signal is received.
+
+A promise returned by the `web3.eth.sendSignedTransaction` is added to a queue and the queue is handled by a separate thread so it doesn't delay the main thread where the sending occurs. The `--queue-limit` defines a maximum size of the queue: if it's reached, the main thread is paused until the queue size becomes less than the limit. It allows to avoid a case when the RPC delays its response for some reason (or when a promise reaches a timeout) and the queue is growing uncontrollably.
+
+When transaction's promise is resolved, it returns a receipt with a result which is handled by the script and the transaction is marked as `Y` or `N` in the corresponding CSV column (see above).
+
+So, this method allows to know transaction results and record them into CSV.
+
+Initially, the load script was made so that the transaction results were handled in the main thread (right after their sending to RPC), but that method gave sending delays due to the time needed for receipts receiving and handling, so the transactions were sent not every block, but often every other block. Currently, the script uses the separate thread to work with transaction receipts.
+
+**2. Send a batch of transactions to RPC without waiting for their results.**
+
+This method is activated when `--queue-limit` CLI option is set to zero and is used for `qDai` chain where blocks are produced every second.
+
+Since there is a quite small amount of time between blocks, we skip receipts handling for the transactions as RPC can significantly delay responses due to a quite big amount of transactions per second.
+
+Like in the first approach, the load script reads transactions by portions (which size is defined by `--tx-limit` CLI option) from the `users.csv` and sends them to the RPC using `eth_sendRawTransaction` JSON RPC request directly (without using web3's `sendSignedTransaction`). It occurs every `--interval` seconds (1 second in case of `qDai`) until the number of `--passes` is reached or `SIGINT` signal is received.
+
+This approach only uses one thread (which only sends transactions and doesn't receive receipts). After a transaction is sent to RPC, the script immediately marks it as `Y` in the corresponding column in CSV.
+
+In this approach we use a direct sending of `eth_sendRawTransaction` request instead of `web3.eth.sendSignedTransaction` despite the fact that the latter actually sends the same request under the hood. The difference is that `web3.eth.sendSignedTransaction` has a lot of handlers inside and consumes a lot of CPU/RAM when there are many transactions (and it waits for transaction hash before marking the sent transaction as `sent` and freeing resources allocated for the tx sending).
+
+To directly send `eth_sendRawTransaction`, we use an embedded `http` module of `Node.js` as it allows to send a request and don't wait for the response (we call [`socket.end()`](https://nodejs.org/docs/latest-v8.x/api/net.html#net_socket_end_data_encoding) function for that). The sending of `eth_sendRawTransaction` is [wrapped to a promise](https://github.com/xdaichain/reddit-scaling-demo/blob/1a49be01808e6a731d0779a95c2400368aacde1b/scripts/load.js#L202-L210) which resolves as soon as the request is written to the RPC.
+
 ## Emitted events
 
 Each transaction emits the corresponding event:
