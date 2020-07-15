@@ -4,7 +4,7 @@ This repo contains a docker-compose file and instructions of how to run https://
 
 It expects to have the same `.env` file and `data` directory mentioned in https://github.com/xdaichain/reddit-scaling-demo. If you are unfamiliar with the configs and commands, please, read https://github.com/xdaichain/reddit-scaling-demo#readme.
 
-**generate-users**
+### generate-users
 
 To run the command:
 
@@ -12,19 +12,19 @@ To run the command:
 $ docker-compose run --rm demo generate-users
 ```
 
-**deploy**
+### deploy
 
 ```bash
 $ docker-compose run --rm demo deploy
 ```
 
-**generate-txs**
+### generate-txs
 
 ```bash
 $ docker-compose run --rm demo generate-txs
 ```
 
-**load**
+### load
 
 To see help, run
 
@@ -63,7 +63,7 @@ To see statistics from the CSV file:
 $ docker-compose run --rm demo load -- -s
 ```
 
-**recheck**
+### recheck
 
 There is a `recheck` command which can be used after the load script is interrupted for some reason and you are not sure about the results saved to `users.csv`.
 
