@@ -31,7 +31,7 @@ This repo should used on a machine with at least 1Gb of free RAM. The scripts re
 
 ## Step 1. Configure and prepare admin and owner keys and addresses
 
-First, we need to dconfigure the root `.env` file. Copy `example.env` to `.env` in the root directory:
+First, we need to configure the root `.env` file. Copy `example.env` to `.env` in the root directory:
 
 ```bash
 $ cp example.env .env
