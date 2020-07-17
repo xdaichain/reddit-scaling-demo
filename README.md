@@ -150,9 +150,9 @@ For example, to perform 1000 `claim` transactions and split them by 10 passes wi
 $ npm run load -- --type=claim --passes=10 --tx-limit=100 --interval=5
 ```
 
-The script will not send transactions from the next pass until all transactions from the current pass are sent to the chain. So, we can regulate the script relaunch with different `--tx-limit` parameters.
+The script will not send transactions from the next pass until all transactions from the current pass are sent to the chain. So, we can relaunch the script with different `--tx-limit` parameters to regulate the load.
 
-While the scripts work, transaction results are written to `users.csv` into a separate column and the current performance information is displayed in the console. For example:
+While the script works, transaction results are written to `users.csv` into a separate column and the current performance information is displayed in the console. For example:
 
 ```
 ...
@@ -212,7 +212,7 @@ A promise returned by the `web3.eth.sendSignedTransaction` is added to a queue a
 
 When the transaction's promise is resolved, it returns a receipt with a result which is handled by the script and the transaction is marked as `Y` or `N` in the corresponding CSV column (see above).
 
-This method receives transaction receipts then records tranasaction results into the CSV.
+This method receives transaction receipts then records transaction results into the CSV.
 
 Initially, the load script handled transaction results in the main thread (right after being sent to the RPC), but sending delays occured due to the time needed for receipts receiving and handling. Transactions were not sent every block, but often every other block. Currently, the script uses the separate thread to work with transaction receipts.
 
