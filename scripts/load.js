@@ -192,6 +192,7 @@ async function sendTXs(i, maxIterations) {
 
   if (!interrupt) {
     log(`Sending ${txs.length} '${program.type}' transaction(s)...`, true);
+    let batch = [];
     for (let t = 0; t < txs.length; t++) {
       const userIndex = txs[t].i;
       if (limitReceiptQueue > 0) {
@@ -199,15 +200,19 @@ async function sendTXs(i, maxIterations) {
       	p.catch(() => {});
         receiptQueue.enqueue({ i: userIndex, p });
       } else {
-        await new Promise(resolve => {
-          let req = http.request(httpOptions);
-          req.write(`{"jsonrpc":"2.0","method":"eth_sendRawTransaction","params":["${txs[t].tx}"],"id":0}`, 'utf8', () => {
-            req.socket.end();
-            req = null;
-            resolve();
+        batch.push(`{"jsonrpc":"2.0","method":"eth_sendRawTransaction","params":["${txs[t].tx}"],"id":${batch.length}}`);
+        if (batch.length >= 10 || t == txs.length - 1) {
+          await new Promise(resolve => {
+            let req = http.request(httpOptions);
+            req.write(`[${batch.join(',')}]`, 'utf8', () => {
+              req.socket.end();
+              req = null;
+              resolve();
+            });
+            req.end();
           });
-          req.end();
-        });
+          batch = [];
+        }
         switch (program.type) {
         case 'claim': setUserClaimed(userIndex, true); break;
         case 'subscribe': setUserSubscribed(userIndex, true); break;
