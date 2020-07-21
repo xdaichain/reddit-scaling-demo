@@ -201,7 +201,7 @@ async function sendTXs(i, maxIterations) {
         receiptQueue.enqueue({ i: userIndex, p });
       } else {
         batch.push(`{"jsonrpc":"2.0","method":"eth_sendRawTransaction","params":["${txs[t].tx}"],"id":${batch.length}}`);
-        if (batch.length >= 10 || t == txs.length - 1) {
+        if (batch.length >= 20 || t == txs.length - 1) {
           await new Promise(resolve => {
             let req = http.request(httpOptions);
             req.write(`[${batch.join(',')}]`, 'utf8', () => {
