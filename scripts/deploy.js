@@ -5,7 +5,8 @@ const envfile = require('envfile');
 const fs = require('fs');
 const solc = require('solc');
 const Web3 = require('web3');
-const web3 = new Web3(process.env.RPC);
+const net = require('net');
+const web3 = new Web3(process.env.IPC ? new Web3.providers.IpcProvider(process.env.IPC, net) : process.env.RPC);
 const BN = web3.utils.BN;
 
 const ownerAccount = web3.eth.accounts.privateKeyToAccount(process.env.OWNER_KEY);
@@ -77,6 +78,8 @@ async function main() {
     2678400, // duration (31 days in seconds)
     2678400  // renewBefore (31 days in seconds), increased from 48 hours in testing pusposes
   ), env.SUBSCRIPTIONS_CONTRACT);
+
+  process.exit();
 }
 
 async function compile(dir, contractName) {

@@ -40,6 +40,7 @@ $ cp example.env .env
 Edit the `.env` file and fill in the following variables:
 
 - `RPC` - points to the chain RPC URL. It is set to `https://dai.poa.network` by default.
+- `IPC` - points to the local IPC path. It is used instead of RPC if not empty.
 - `PROXY_ADMIN` - Proxy Admin address used when deploying upgradable Reddit contracts (passed to the constructor of the `AdminUpgradeabilityProxy` contract). This address won't be used during testing but the key should be known if we decide to change something in the Reddit contracts (their implementations).
 - `OWNER` - account which deploys and initializes all the contracts. The owner has rights to call some functions in `SubredditPoints, Distributions, Subscriptions` and change configurations.
 - `OWNER_KEY` -  `OWNER`'s private key.
@@ -202,33 +203,33 @@ This means that in the demo, users first claim tokens, then a subset of users su
 
 There are two approaches to send transactions using the load script:
 
-**1. Send a batch of transactions to RPC and wait for receipts.**
+**1. Send a batch of transactions to the chain and wait for receipts.**
 
 This method is turned on by default (when `--queue-limit` CLI option is set to a non-zero value). It is used for the xDai chain with 5-seconds blocks.
 
-The load script reads transactions in chunks (size is defined by `--tx-limit` CLI option) from the `users.csv` and sends them to the RPC using the [`web3.eth.sendSignedTransaction`](https://web3js.readthedocs.io/en/v1.2.9/web3-eth.html#sendsignedtransaction) function. It occurs every `--interval` seconds until the number of `--passes` is reached or `SIGINT` signal is received.
+The load script reads transactions in chunks (size is defined by `--tx-limit` CLI option) from the `users.csv` and sends them to the chain using the [`web3.eth.sendSignedTransaction`](https://web3js.readthedocs.io/en/v1.2.9/web3-eth.html#sendsignedtransaction) function. It occurs every `--interval` seconds until the number of `--passes` is reached or `SIGINT` signal is received.
 
-A promise returned by the `web3.eth.sendSignedTransaction` is added to a queue and the queue is handled by a separate thread so it doesn't delay the main thread where sending occurs. The `--queue-limit` defines the maximum size of the queue: if it's reached, the main thread is paused until the queue size is reduced below the limit. This prevents a scenario where the RPC delays its response for some reason (or when a promise reaches a timeout) and causes the queue to grow uncontrollably.
+A promise returned by the `web3.eth.sendSignedTransaction` is added to a queue and the queue is handled by a separate thread so it doesn't delay the main thread where sending occurs. The `--queue-limit` defines the maximum size of the queue: if it's reached, the main thread is paused until the queue size is reduced below the limit. This prevents a scenario where the RPC/IPC delays its response for some reason (or when a promise reaches a timeout) and causes the queue to grow uncontrollably.
 
 When the transaction's promise is resolved, it returns a receipt with a result which is handled by the script and the transaction is marked as `Y` or `N` in the corresponding CSV column (see above).
 
 This method receives transaction receipts then records transaction results into the CSV.
 
-Initially, the load script handled transaction results in the main thread (right after being sent to the RPC), but sending delays occured due to the time needed for receipts receiving and handling. Transactions were not sent every block, but often every other block. Currently, the script uses the separate thread to work with transaction receipts.
+Initially, the load script handled transaction results in the main thread (right after being sent to the chain), but sending delays occured due to the time needed for receipts receiving and handling. Transactions were not sent every block, but often every other block. Currently, the script uses the separate thread to work with transaction receipts.
 
-**2. Send a batch of transactions to the RPC without waiting for their results.**
+**2. Send a batch of transactions to the chain without waiting for their results.**
 
 This method is activated when `--queue-limit` CLI option is set to zero and is used for `qDai` chain where blocks are produced every second.
 
 Since there is a very small amount of time between blocks, we skip receipts handling for the transactions. The RPC can significantly delay responses due to a large amount of transactions per second.
 
-As with the first approach, the load script reads transactions in chunks (which size is defined by `--tx-limit` CLI option) from the `users.csv` and sends them to the RPC using `eth_sendRawTransaction` JSON RPC request directly (without using web3's `sendSignedTransaction`). This occurs every `--interval` seconds (1 second in case of `qDai`) until the number of `--passes` is reached or `SIGINT` signal is received.
+As with the first approach, the load script reads transactions in chunks (which size is defined by `--tx-limit` CLI option) from the `users.csv` and sends them to the chain using `eth_sendRawTransaction` JSON RPC request directly (without using web3's `sendSignedTransaction`). This occurs every `--interval` seconds (1 second in case of `qDai`) until the number of `--passes` is reached or `SIGINT` signal is received.
 
-This approach only uses one thread (which only sends transactions and doesn't receive receipts). After a transaction is sent to the RPC, the script immediately marks it as `Y` in the corresponding column in the CSV.
+This approach only uses one thread (which only sends transactions and doesn't receive receipts). After a transaction is sent to the chain, the script immediately marks it as `Y` in the corresponding column in the CSV.
 
 With this approach we send the `eth_sendRawTransaction` request directly rather than `web3.eth.sendSignedTransaction` despite the fact that both send the same information. The difference is that `web3.eth.sendSignedTransaction` contains many handlers and consumes a good deal of CPU/RAM when there are a lot of transactions (and it waits for the transaction hash before marking the sent transaction as `sent`, using resources allocated for tx sending).
 
-To directly send `eth_sendRawTransaction`, we use an embedded `http` module of `Node.js`. This allows us to send a request without waiting for the response (we call the [`socket.end()`](https://nodejs.org/docs/latest-v8.x/api/net.html#net_socket_end_data_encoding) function). `eth_sendRawTransaction` is sent [wrapped to a promise](https://github.com/xdaichain/reddit-scaling-demo/blob/1a49be01808e6a731d0779a95c2400368aacde1b/scripts/load.js#L202-L210) which resolves as soon as the request is written to the RPC.
+To directly send `eth_sendRawTransaction`, we use an embedded `http` module of `Node.js`(if IPC is not used), or a socket connection (if IPC is used). This allows us to send a request without waiting for the response (we call the [`socket.end()`](https://nodejs.org/docs/latest-v8.x/api/net.html#net_socket_end_data_encoding) function). `eth_sendRawTransaction` is sent [wrapped to a promise](https://github.com/xdaichain/reddit-scaling-demo/blob/1a49be01808e6a731d0779a95c2400368aacde1b/scripts/load.js#L202-L210) which resolves as soon as the request is written to the chain.
 
 ## Emitted events
 

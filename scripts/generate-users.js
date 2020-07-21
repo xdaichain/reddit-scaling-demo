@@ -4,7 +4,8 @@ const assert = require('assert');
 const constants = require('./constants');
 const Web3 = require('web3');
 const fs = require('fs');
-const web3 = new Web3(process.env.RPC);
+const net = require('net');
+const web3 = new Web3(process.env.IPC ? new Web3.providers.IpcProvider(process.env.IPC, net) : process.env.RPC);
 
 main();
 
@@ -110,6 +111,8 @@ async function main() {
   fs.writeFileSync(filepath, lines.join('\n'), 'utf8');
 
   console.log(`Finished. Users are saved to ${filepath}`);
+
+  process.exit();
 }
 
 function randomInt(min, max) {
