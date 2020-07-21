@@ -229,7 +229,7 @@ This approach only uses one thread (which only sends transactions and doesn't re
 
 With this approach we send the `eth_sendRawTransaction` request directly rather than `web3.eth.sendSignedTransaction` despite the fact that both send the same information. The difference is that `web3.eth.sendSignedTransaction` contains many handlers and consumes a good deal of CPU/RAM when there are a lot of transactions (and it waits for the transaction hash before marking the sent transaction as `sent`, using resources allocated for tx sending).
 
-To directly send `eth_sendRawTransaction`, we use an embedded `http` module of `Node.js`(if IPC is not used), or a socket connection (if IPC is used). This allows us to send a request without waiting for the response (we call the [`socket.end()`](https://nodejs.org/docs/latest-v8.x/api/net.html#net_socket_end_data_encoding) function). `eth_sendRawTransaction` is sent [wrapped to a promise](https://github.com/xdaichain/reddit-scaling-demo/blob/1a49be01808e6a731d0779a95c2400368aacde1b/scripts/load.js#L202-L210) which resolves as soon as the request is written to the chain.
+To directly send `eth_sendRawTransaction`, we use an embedded `http` module of `Node.js`(if IPC is not used), or a socket connection (if IPC is used). This allows us to send a request without waiting for the response (we call the [`socket.end()`](https://nodejs.org/docs/latest-v8.x/api/net.html#net_socket_end_data_encoding) function). `eth_sendRawTransaction` is sent [wrapped to a promise](https://github.com/xdaichain/reddit-scaling-demo/blob/28034feb9f0438aa208bcb572b2fdfc9d7623023/scripts/load.js#L218-L230) which resolves as soon as the request is written to the chain.
 
 ## Emitted events
 
