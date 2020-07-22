@@ -165,7 +165,8 @@ async function signAndDeploy(contractName, constructorArguments) {
 
 async function signAndSend(method, to) {
   const estimateGas = await method.estimateGas({
-    from: owner
+    from: owner,
+    gasPrice: '0'
   });
 
   const signedTxData = await ownerAccount.signTransaction({
