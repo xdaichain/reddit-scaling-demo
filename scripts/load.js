@@ -30,6 +30,7 @@ let onePassTxLimit = 1; // how many transactions per one pass
 let onePassInterval = 5; // interval between passes (in seconds)
 let limitPasses = 1; // how many passes allowed. 0 for unlimited passes
 let limitReceiptQueue = 200; // how many receipts in queue allowed
+let offset = 0; // starting position
 let passesPerformed = 0;
 let startTimestamp;
 let users = [];
@@ -60,10 +61,11 @@ main();
 async function main() {
   program.name("npm run load").usage("-- <options>");
   program.option('-t, --type <type>', 'transaction type. Possible values: claim, subscribe, burn, transfer');
-  program.option('-p, --passes [number]', 'how many passes to perform. 0 for unlimited', limitPasses);
-  program.option('-l, --tx-limit [number]', 'how many transactions per one pass', onePassTxLimit);
-  program.option('-i, --interval [number]', 'seconds between passes', onePassInterval);
-  program.option('-q, --queue-limit [number]', 'receipt queue max size. 0 to ignore receipts', limitReceiptQueue);
+  program.option('-p, --passes <number>', 'how many passes to perform. 0 for unlimited', limitPasses);
+  program.option('-l, --tx-limit <number>', 'how many transactions per one pass', onePassTxLimit);
+  program.option('-i, --interval <number>', 'seconds between passes', onePassInterval);
+  program.option('-q, --queue-limit <number>', 'receipt queue max size. 0 to ignore receipts', limitReceiptQueue);
+  program.option('-o, --offset <number>', 'starting position in users.csv', offset);
   program.option('-s, --stat', 'shows how many txs of each type were sent (calculates Y/N flags from users.csv)');
   program.parse(process.argv);
 
@@ -95,6 +97,11 @@ async function main() {
 
   limitReceiptQueue = parseInt(program.queueLimit);
   if (isNaN(limitReceiptQueue) || limitReceiptQueue < 0) {
+    program.help();
+  }
+
+  offset = parseInt(program.offset);
+  if (isNaN(offset) || offset < 0) {
     program.help();
   }
 
@@ -134,7 +141,7 @@ async function main() {
 }
 
 async function claim() {
-  for (let i = 0; i < users.length; i++) {
+  for (let i = offset; i < users.length; i++) {
     const { claimTx, claimed } = user(i);
 
     if (!claimTx) continue;
@@ -146,7 +153,7 @@ async function claim() {
 async function subscribe() {
   const maxSubscribeOperations = constants.TOTAL_SUBSCRIBE_TRANSACTIONS;
 
-  for (let i = 0; i < maxSubscribeOperations; i++) {
+  for (let i = offset; i < maxSubscribeOperations; i++) {
     const { subscribeTx, claimed, subscribed } = user(i);
 
     if (!subscribeTx) continue;
@@ -159,7 +166,7 @@ async function subscribe() {
 async function burn() {
   const maxBurnOperations = constants.TOTAL_BURN_TRANSACTIONS;
 
-  for (let i = 0; i < maxBurnOperations; i++) {
+  for (let i = offset; i < maxBurnOperations; i++) {
     const { subscribeTx, burnTx, claimed, subscribed, burned } = user(i);
 
     if (!burnTx) continue;
@@ -171,7 +178,7 @@ async function burn() {
 }
 
 async function transfer() {
-  for (let i = 0; i < users.length; i++) {
+  for (let i = offset; i < users.length; i++) {
     const { subscribeTx, burnTx, transferTx, claimed, subscribed, burned, transferred } = user(i);
 
     if (!transferTx) continue;
@@ -184,7 +191,9 @@ async function transfer() {
 }
 
 async function sendTXs(i, maxIterations) {
-  if (txs.length < onePassTxLimit && i != maxIterations - 1) {
+  const isLastIteration = (i == maxIterations - 1);
+
+  if (txs.length < onePassTxLimit && !isLastIteration) {
     return true; // skip this iteration
   }
 
@@ -251,8 +260,11 @@ async function sendTXs(i, maxIterations) {
     }
   }
 
-  if ((limitPasses > 0 && ++passesPerformed >= limitPasses) || interrupt) {
+  if ((limitPasses > 0 && ++passesPerformed >= limitPasses) || interrupt || isLastIteration) {
     await csvSave();
+    if (limitReceiptQueue === 0) {
+      printFlags();
+    }
     return false;
   }
 

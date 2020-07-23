@@ -133,10 +133,11 @@ Usage: npm run load -- <options>
 
 Options:
   -t, --type <type>           transaction type. Possible values: claim, subscribe, burn, transfer
-  -p, --passes [number]       how many passes to perform. 0 for unlimited (default: 1)
-  -l, --tx-limit [number]     how many transactions per one pass (default: 1)
-  -i, --interval [number]     seconds between passes (default: 5)
-  -q, --queue-limit [number]  receipt queue max size. 0 to ignore receipts (default: 200)
+  -p, --passes <number>       how many passes to perform. 0 for unlimited (default: 1)
+  -l, --tx-limit <number>     how many transactions per one pass (default: 1)
+  -i, --interval <number>     seconds between passes (default: 5)
+  -q, --queue-limit <number>  receipt queue max size. 0 to ignore receipts (default: 200)
+  -o, --offset <number>       starting position in users.csv (default: 0)
   -s, --stat                  shows how many txs of each type were sent (calculates Y/N flags from users.csv)
   -h, --help                  display help for command
 ```
