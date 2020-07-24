@@ -3,7 +3,9 @@ require('dotenv').config();
 const assert = require('assert');
 const constants = require('./constants');
 const Web3 = require('web3');
+const cp = require('child_process');
 const fs = require('fs');
+const os = require('os');
 const net = require('net');
 const web3 = new Web3(process.env.IPC ? new Web3.providers.IpcProvider(process.env.IPC, net) : process.env.RPC);
 
@@ -51,42 +53,45 @@ async function main() {
   fs.unlinkSync(tmpFilepath);
 
   console.log('Add signatures and random karma for `claim`...');
-  let totalKarma = 0;
-  const subredditLowerCase = subreddit.toLowerCase();
-  for (let i = 0; i < totalAddresses; i++) {
-    let line = lines[i].split(',');
-    const account = line[0];
-
-    let karma;
-    if (i < subscribes) {
-      karma = randomInt(270, 400+1); // karma = 270...400
-    } else {
-      karma = randomInt(150, 200+1); // karma = 150...200
-    }
-    totalKarma += karma;
-
-    const message = web3.utils.keccak256(web3.eth.abi.encodeParameters(
-      ['string', 'uint256', 'address', 'uint256'], [
-        subredditLowerCase,
-        0, // round
-        account,
-        karma
-      ]
-    ));
-
-    const signature = web3.eth.accounts.sign(message, karmaSourcePrivateKey);
-
-    assert(signature.signature.startsWith('0x'));
-    assert(signature.signature.length == 65*2+2);
-    assert((new web3.utils.BN(signature.s)).lte(new web3.utils.BN('0x7FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF5D576E7357A4501DDFE92F46681B20A0')));
-    assert(web3.utils.hexToNumber(signature.v) === 27 || web3.utils.hexToNumber(signature.v) === 28);
-
-    lines[i] = `${lines[i]},${karma},${signature.signature}`; // append csv columns
-
-    console.log(`  Progress: ${i+1}/${lines.length}`);
+  let results = [];
+  let resultsReceived = 0;
+  const maxThreads = os.cpus().length;
+  for (let i = 0; i < maxThreads; i++) {
+    const thread = cp.fork(`${__dirname}/generate-users-child.js`);
+    thread.send({
+      i,
+      lines,
+      start: Math.floor(lines.length * i / maxThreads),
+      end: Math.floor(lines.length * (i+1) / maxThreads)
+    });
+    thread.on('message', m => {
+      results[m.i] = m.results;
+      thread.disconnect();
+      resultsReceived++;
+    });
   }
+  while (resultsReceived < maxThreads) {
+    await sleep(10);
+  }
+  let l = 0;
+  let totalLinesNumber = 0;
+  for (let i = 0; i < maxThreads; i++) {
+    const res = results[i];
+    totalLinesNumber += res.length;
+    for (let c = 0; c < res.length; c++, l++) {
+      lines[l] = `${lines[l]},${res[c]}`; // append the `karma` and `signature` columns
+    }
+  }
+  assert(totalLinesNumber === lines.length);
+
+  let totalKarma = 0;
   let minUserPoints1 = availablePoints;
   let minUserPoints2 = availablePoints;
+  for (let i = 0; i < totalAddresses; i++) {
+    const line = lines[i].split(',');
+    const karma = line[2] - 0;
+    totalKarma += karma;
+  }
   for (let i = 0; i < totalAddresses; i++) {
     const line = lines[i].split(',');
     const karma = line[2];
@@ -117,4 +122,8 @@ async function main() {
 
 function randomInt(min, max) {
   return min + Math.floor((max - min) * Math.random());
+}
+
+function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
 }
