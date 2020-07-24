@@ -2,146 +2,81 @@ require('dotenv').config();
 
 const assert = require('assert');
 const constants = require('./constants');
+const cp = require('child_process');
 const Web3 = require('web3');
 const fs = require('fs');
+const os = require('os');
 const net = require('net');
 const web3 = new Web3(process.env.IPC ? new Web3.providers.IpcProvider(process.env.IPC, net) : process.env.RPC);
 
-const distributionsABI = [{"type":"event","name":"AdvanceRound","inputs":[{"type":"uint256","name":"round","internalType":"uint256","indexed":false},{"type":"uint256","name":"totalPoints","internalType":"uint256","indexed":false},{"type":"uint256","name":"sharedOwnersPoints","internalType":"uint256","indexed":false}],"anonymous":false},{"type":"event","name":"ClaimPoints","inputs":[{"type":"uint256","name":"round","internalType":"uint256","indexed":false},{"type":"address","name":"user","internalType":"address","indexed":true},{"type":"uint256","name":"karma","internalType":"uint256","indexed":false},{"type":"uint256","name":"points","internalType":"uint256","indexed":false}],"anonymous":false},{"type":"event","name":"KarmaSourceUpdated","inputs":[{"type":"address","name":"_karmaSource","internalType":"address","indexed":false},{"type":"address","name":"_prevKarmaSource","internalType":"address","indexed":false}],"anonymous":false},{"type":"event","name":"OwnershipTransferred","inputs":[{"type":"address","name":"previousOwner","internalType":"address","indexed":true},{"type":"address","name":"newOwner","internalType":"address","indexed":true}],"anonymous":false},{"type":"event","name":"RelayHubChanged","inputs":[{"type":"address","name":"oldRelayHub","internalType":"address","indexed":true},{"type":"address","name":"newRelayHub","internalType":"address","indexed":true}],"anonymous":false},{"type":"event","name":"RoundsBeforeExpirationUpdated","inputs":[{"type":"uint256","name":"roundsBeforeExpiration","internalType":"uint256","indexed":false}],"anonymous":false},{"type":"event","name":"SharedOwnerUpdated","inputs":[{"type":"address","name":"_from","internalType":"address","indexed":true},{"type":"address","name":"_to","internalType":"address","indexed":true},{"type":"uint256","name":"_percent","internalType":"uint256","indexed":false}],"anonymous":false},{"type":"event","name":"SignerUpdated","inputs":[{"type":"address","name":"signer","internalType":"address","indexed":false}],"anonymous":false},{"type":"event","name":"SupplyDecayPercentUpdated","inputs":[{"type":"uint256","name":"supplyDecayPercent","internalType":"uint256","indexed":false}],"anonymous":false},{"type":"function","stateMutability":"view","payable":false,"outputs":[{"type":"uint256","name":"","internalType":"uint256"}],"name":"MAX_ROUND_SUPPLY","inputs":[],"constant":true},{"type":"function","stateMutability":"view","payable":false,"outputs":[{"type":"uint256","name":"","internalType":"uint256"}],"name":"MAX_SHARED_OWNERS","inputs":[],"constant":true},{"type":"function","stateMutability":"view","payable":false,"outputs":[{"type":"uint256","name":"","internalType":"uint256"}],"name":"MAX_SKIP_ROUNDS","inputs":[],"constant":true},{"type":"function","stateMutability":"view","payable":false,"outputs":[{"type":"uint256","name":"","internalType":"uint256"}],"name":"PERCENT_PRECISION","inputs":[],"constant":true},{"type":"function","stateMutability":"view","payable":false,"outputs":[{"type":"uint256","name":"","internalType":"uint256"},{"type":"bytes","name":"","internalType":"bytes"}],"name":"acceptRelayedCall","inputs":[{"type":"address","name":"relay","internalType":"address"},{"type":"address","name":"from","internalType":"address"},{"type":"bytes","name":"encodedFunction","internalType":"bytes"},{"type":"uint256","name":"transactionFee","internalType":"uint256"},{"type":"uint256","name":"gasPrice","internalType":"uint256"},{"type":"uint256","name":"gasLimit","internalType":"uint256"},{"type":"uint256","name":"nonce","internalType":"uint256"},{"type":"bytes","name":"approvalData","internalType":"bytes"},{"type":"uint256","name":"","internalType":"uint256"}],"constant":true},{"type":"function","stateMutability":"nonpayable","payable":false,"outputs":[],"name":"advanceToRound","inputs":[{"type":"uint256","name":"round","internalType":"uint256"},{"type":"uint256","name":"totalKarma","internalType":"uint256"}],"constant":false},{"type":"function","stateMutability":"nonpayable","payable":false,"outputs":[],"name":"claim","inputs":[{"type":"uint256","name":"round","internalType":"uint256"},{"type":"address","name":"account","internalType":"address"},{"type":"uint256","name":"karma","internalType":"uint256"},{"type":"bytes","name":"signature","internalType":"bytes"}],"constant":false},{"type":"function","stateMutability":"view","payable":false,"outputs":[{"type":"address","name":"","internalType":"address"}],"name":"getHubAddr","inputs":[],"constant":true},{"type":"function","stateMutability":"view","payable":false,"outputs":[{"type":"uint256","name":"","internalType":"uint256"}],"name":"initialSupply","inputs":[],"constant":true},{"type":"function","stateMutability":"nonpayable","payable":false,"outputs":[],"name":"initialize","inputs":[],"constant":false},{"type":"function","stateMutability":"nonpayable","payable":false,"outputs":[],"name":"initialize","inputs":[{"type":"address","name":"trustedSigner","internalType":"address"}],"constant":false},{"type":"function","stateMutability":"nonpayable","payable":false,"outputs":[],"name":"initialize","inputs":[{"type":"address","name":"owner_","internalType":"address"},{"type":"address","name":"subredditPoints_","internalType":"address"},{"type":"address","name":"karmaSource_","internalType":"address"},{"type":"address","name":"gsnApprover_","internalType":"address"},{"type":"uint256","name":"initialSupply_","internalType":"uint256"},{"type":"uint256","name":"nextSupply_","internalType":"uint256"},{"type":"uint256","name":"initialKarma_","internalType":"uint256"},{"type":"uint256","name":"roundsBeforeExpiration_","internalType":"uint256"},{"type":"uint256","name":"supplyDecayPercent_","internalType":"uint256"},{"type":"address[]","name":"sharedOwners_","internalType":"address[]"},{"type":"uint256[]","name":"sharedOwnersPercs_","internalType":"uint256[]"}],"constant":false},{"type":"function","stateMutability":"view","payable":false,"outputs":[{"type":"bool","name":"","internalType":"bool"}],"name":"isOwner","inputs":[],"constant":true},{"type":"function","stateMutability":"view","payable":false,"outputs":[{"type":"address","name":"","internalType":"address"}],"name":"karmaSource","inputs":[],"constant":true},{"type":"function","stateMutability":"view","payable":false,"outputs":[{"type":"uint256","name":"","internalType":"uint256"}],"name":"lastRound","inputs":[],"constant":true},{"type":"function","stateMutability":"view","payable":false,"outputs":[{"type":"uint256","name":"","internalType":"uint256"}],"name":"minClaimableRound","inputs":[],"constant":true},{"type":"function","stateMutability":"view","payable":false,"outputs":[{"type":"uint256","name":"","internalType":"uint256"}],"name":"nextSupply","inputs":[],"constant":true},{"type":"function","stateMutability":"view","payable":false,"outputs":[{"type":"address","name":"","internalType":"address"}],"name":"owner","inputs":[],"constant":true},{"type":"function","stateMutability":"pure","payable":false,"outputs":[{"type":"uint256","name":"","internalType":"uint256"}],"name":"percentPrecision","inputs":[],"constant":true},{"type":"function","stateMutability":"nonpayable","payable":false,"outputs":[],"name":"postRelayedCall","inputs":[{"type":"bytes","name":"context","internalType":"bytes"},{"type":"bool","name":"success","internalType":"bool"},{"type":"uint256","name":"actualCharge","internalType":"uint256"},{"type":"bytes32","name":"preRetVal","internalType":"bytes32"}],"constant":false},{"type":"function","stateMutability":"nonpayable","payable":false,"outputs":[{"type":"bytes32","name":"","internalType":"bytes32"}],"name":"preRelayedCall","inputs":[{"type":"bytes","name":"context","internalType":"bytes"}],"constant":false},{"type":"function","stateMutability":"view","payable":false,"outputs":[{"type":"address","name":"","internalType":"address"}],"name":"prevKarmaSource","inputs":[],"constant":true},{"type":"function","stateMutability":"view","payable":false,"outputs":[{"type":"string","name":"","internalType":"string"}],"name":"relayHubVersion","inputs":[],"constant":true},{"type":"function","stateMutability":"nonpayable","payable":false,"outputs":[],"name":"renounceOwnership","inputs":[],"constant":false},{"type":"function","stateMutability":"view","payable":false,"outputs":[{"type":"uint256","name":"","internalType":"uint256"}],"name":"roundsBeforeExpiration","inputs":[],"constant":true},{"type":"function","stateMutability":"nonpayable","payable":false,"outputs":[],"name":"setDefaultRelayHub","inputs":[],"constant":false},{"type":"function","stateMutability":"view","payable":false,"outputs":[{"type":"address","name":"account","internalType":"address"},{"type":"uint256","name":"percent","internalType":"uint256"}],"name":"sharedOwners","inputs":[{"type":"uint256","name":"","internalType":"uint256"}],"constant":true},{"type":"function","stateMutability":"view","payable":false,"outputs":[{"type":"uint256","name":"","internalType":"uint256"}],"name":"startBlockNumber","inputs":[],"constant":true},{"type":"function","stateMutability":"view","payable":false,"outputs":[{"type":"string","name":"","internalType":"string"}],"name":"subreddit","inputs":[],"constant":true},{"type":"function","stateMutability":"view","payable":false,"outputs":[{"type":"address","name":"","internalType":"address"}],"name":"subredditPoints","inputs":[],"constant":true},{"type":"function","stateMutability":"view","payable":false,"outputs":[{"type":"uint256","name":"","internalType":"uint256"}],"name":"supplyDecayPercent","inputs":[],"constant":true},{"type":"function","stateMutability":"view","payable":false,"outputs":[{"type":"uint256","name":"","internalType":"uint256"}],"name":"totalSharedOwners","inputs":[],"constant":true},{"type":"function","stateMutability":"nonpayable","payable":false,"outputs":[],"name":"transferOwnership","inputs":[{"type":"address","name":"newOwner","internalType":"address"}],"constant":false},{"type":"function","stateMutability":"nonpayable","payable":false,"outputs":[],"name":"updateGSNApprover","inputs":[{"type":"address","name":"gsnApprover","internalType":"address"}],"constant":false},{"type":"function","stateMutability":"nonpayable","payable":false,"outputs":[],"name":"updateKarmaSource","inputs":[{"type":"address","name":"_karmaSource","internalType":"address"}],"constant":false},{"type":"function","stateMutability":"nonpayable","payable":false,"outputs":[],"name":"updateRoundsBeforeExpiration","inputs":[{"type":"uint256","name":"_roundsBeforeExpiration","internalType":"uint256"}],"constant":false},{"type":"function","stateMutability":"nonpayable","payable":false,"outputs":[],"name":"updateSharedOwner","inputs":[{"type":"address","name":"account","internalType":"address"},{"type":"uint256","name":"percent","internalType":"uint256"}],"constant":false},{"type":"function","stateMutability":"nonpayable","payable":false,"outputs":[],"name":"updateSupplyDecayPercent","inputs":[{"type":"uint256","name":"_supplyDecayPercent","internalType":"uint256"}],"constant":false}];
-const distributionsContract = new web3.eth.Contract(distributionsABI, process.env.DISTRIBUTIONS_CONTRACT);
-
-const subscriptionsABI = [{"type":"event","name":"Canceled","inputs":[{"type":"address","name":"recipient","internalType":"address","indexed":true},{"type":"uint256","name":"expiresAt","internalType":"uint256","indexed":false}],"anonymous":false},{"type":"event","name":"DurationUpdated","inputs":[{"type":"uint256","name":"duration","internalType":"uint256","indexed":false}],"anonymous":false},{"type":"event","name":"OwnershipTransferred","inputs":[{"type":"address","name":"previousOwner","internalType":"address","indexed":true},{"type":"address","name":"newOwner","internalType":"address","indexed":true}],"anonymous":false},{"type":"event","name":"PriceUpdated","inputs":[{"type":"uint256","name":"price","internalType":"uint256","indexed":false}],"anonymous":false},{"type":"event","name":"RelayHubChanged","inputs":[{"type":"address","name":"oldRelayHub","internalType":"address","indexed":true},{"type":"address","name":"newRelayHub","internalType":"address","indexed":true}],"anonymous":false},{"type":"event","name":"RenewBeforeUpdated","inputs":[{"type":"uint256","name":"renewBefore","internalType":"uint256","indexed":false}],"anonymous":false},{"type":"event","name":"SignerUpdated","inputs":[{"type":"address","name":"signer","internalType":"address","indexed":false}],"anonymous":false},{"type":"event","name":"Subscribed","inputs":[{"type":"address","name":"recipient","internalType":"address","indexed":true},{"type":"address","name":"payer","internalType":"address","indexed":true},{"type":"uint256","name":"burnedPoints","internalType":"uint256","indexed":false},{"type":"uint256","name":"expiresAt","internalType":"uint256","indexed":false},{"type":"bool","name":"renewable","internalType":"bool","indexed":false}],"anonymous":false},{"type":"function","stateMutability":"view","payable":false,"outputs":[{"type":"uint256","name":"","internalType":"uint256"},{"type":"bytes","name":"","internalType":"bytes"}],"name":"acceptRelayedCall","inputs":[{"type":"address","name":"relay","internalType":"address"},{"type":"address","name":"from","internalType":"address"},{"type":"bytes","name":"encodedFunction","internalType":"bytes"},{"type":"uint256","name":"transactionFee","internalType":"uint256"},{"type":"uint256","name":"gasPrice","internalType":"uint256"},{"type":"uint256","name":"gasLimit","internalType":"uint256"},{"type":"uint256","name":"nonce","internalType":"uint256"},{"type":"bytes","name":"approvalData","internalType":"bytes"},{"type":"uint256","name":"","internalType":"uint256"}],"constant":true},{"type":"function","stateMutability":"nonpayable","payable":false,"outputs":[],"name":"cancel","inputs":[{"type":"address","name":"recipient","internalType":"address"}],"constant":false},{"type":"function","stateMutability":"view","payable":false,"outputs":[{"type":"uint256","name":"","internalType":"uint256"}],"name":"duration","inputs":[],"constant":true},{"type":"function","stateMutability":"view","payable":false,"outputs":[{"type":"uint256","name":"","internalType":"uint256"}],"name":"expiration","inputs":[{"type":"address","name":"account","internalType":"address"}],"constant":true},{"type":"function","stateMutability":"view","payable":false,"outputs":[{"type":"address","name":"","internalType":"address"}],"name":"getHubAddr","inputs":[],"constant":true},{"type":"function","stateMutability":"nonpayable","payable":false,"outputs":[],"name":"initialize","inputs":[{"type":"address","name":"owner_","internalType":"address"},{"type":"address","name":"gsnApprover","internalType":"address"},{"type":"address","name":"subredditPoints","internalType":"address"},{"type":"uint256","name":"price_","internalType":"uint256"},{"type":"uint256","name":"duration_","internalType":"uint256"},{"type":"uint256","name":"renewBefore_","internalType":"uint256"}],"constant":false},{"type":"function","stateMutability":"nonpayable","payable":false,"outputs":[],"name":"initialize","inputs":[],"constant":false},{"type":"function","stateMutability":"nonpayable","payable":false,"outputs":[],"name":"initialize","inputs":[{"type":"address","name":"trustedSigner","internalType":"address"}],"constant":false},{"type":"function","stateMutability":"view","payable":false,"outputs":[{"type":"bool","name":"","internalType":"bool"}],"name":"isOwner","inputs":[],"constant":true},{"type":"function","stateMutability":"view","payable":false,"outputs":[{"type":"address","name":"","internalType":"address"}],"name":"owner","inputs":[],"constant":true},{"type":"function","stateMutability":"nonpayable","payable":false,"outputs":[],"name":"postRelayedCall","inputs":[{"type":"bytes","name":"context","internalType":"bytes"},{"type":"bool","name":"success","internalType":"bool"},{"type":"uint256","name":"actualCharge","internalType":"uint256"},{"type":"bytes32","name":"preRetVal","internalType":"bytes32"}],"constant":false},{"type":"function","stateMutability":"nonpayable","payable":false,"outputs":[{"type":"bytes32","name":"","internalType":"bytes32"}],"name":"preRelayedCall","inputs":[{"type":"bytes","name":"context","internalType":"bytes"}],"constant":false},{"type":"function","stateMutability":"view","payable":false,"outputs":[{"type":"uint256","name":"","internalType":"uint256"}],"name":"price","inputs":[],"constant":true},{"type":"function","stateMutability":"view","payable":false,"outputs":[{"type":"string","name":"","internalType":"string"}],"name":"relayHubVersion","inputs":[],"constant":true},{"type":"function","stateMutability":"nonpayable","payable":false,"outputs":[],"name":"renew","inputs":[{"type":"address","name":"recipient","internalType":"address"}],"constant":false},{"type":"function","stateMutability":"view","payable":false,"outputs":[{"type":"uint256","name":"","internalType":"uint256"}],"name":"renewBefore","inputs":[],"constant":true},{"type":"function","stateMutability":"nonpayable","payable":false,"outputs":[],"name":"renounceOwnership","inputs":[],"constant":false},{"type":"function","stateMutability":"nonpayable","payable":false,"outputs":[],"name":"setDefaultRelayHub","inputs":[],"constant":false},{"type":"function","stateMutability":"nonpayable","payable":false,"outputs":[],"name":"subscribe","inputs":[{"type":"address","name":"recipient","internalType":"address"},{"type":"bool","name":"renewable","internalType":"bool"}],"constant":false},{"type":"function","stateMutability":"nonpayable","payable":false,"outputs":[],"name":"transferOwnership","inputs":[{"type":"address","name":"newOwner","internalType":"address"}],"constant":false},{"type":"function","stateMutability":"nonpayable","payable":false,"outputs":[],"name":"updateDuration","inputs":[{"type":"uint256","name":"duration_","internalType":"uint256"}],"constant":false},{"type":"function","stateMutability":"nonpayable","payable":false,"outputs":[],"name":"updateGSNApprover","inputs":[{"type":"address","name":"gsnApprover","internalType":"address"}],"constant":false},{"type":"function","stateMutability":"nonpayable","payable":false,"outputs":[],"name":"updatePrice","inputs":[{"type":"uint256","name":"price_","internalType":"uint256"}],"constant":false},{"type":"function","stateMutability":"nonpayable","payable":false,"outputs":[],"name":"updateRenewBefore","inputs":[{"type":"uint256","name":"renewBefore_","internalType":"uint256"}],"constant":false}];
-const subscriptionsContract = new web3.eth.Contract(subscriptionsABI, process.env.SUBSCRIPTIONS_CONTRACT);
-
-const subredditPointsABI = [{"type":"event","name":"Approval","inputs":[{"type":"address","name":"owner","internalType":"address","indexed":true},{"type":"address","name":"spender","internalType":"address","indexed":true},{"type":"uint256","name":"value","internalType":"uint256","indexed":false}],"anonymous":false},{"type":"event","name":"AuthorizedOperator","inputs":[{"type":"address","name":"operator","internalType":"address","indexed":true},{"type":"address","name":"tokenHolder","internalType":"address","indexed":true}],"anonymous":false},{"type":"event","name":"Burned","inputs":[{"type":"address","name":"operator","internalType":"address","indexed":true},{"type":"address","name":"from","internalType":"address","indexed":true},{"type":"uint256","name":"amount","internalType":"uint256","indexed":false},{"type":"bytes","name":"data","internalType":"bytes","indexed":false},{"type":"bytes","name":"operatorData","internalType":"bytes","indexed":false}],"anonymous":false},{"type":"event","name":"DefaultOperatorAdded","inputs":[{"type":"address","name":"operator","internalType":"address","indexed":true}],"anonymous":false},{"type":"event","name":"DefaultOperatorRemoved","inputs":[{"type":"address","name":"operator","internalType":"address","indexed":true}],"anonymous":false},{"type":"event","name":"Minted","inputs":[{"type":"address","name":"operator","internalType":"address","indexed":true},{"type":"address","name":"to","internalType":"address","indexed":true},{"type":"uint256","name":"amount","internalType":"uint256","indexed":false},{"type":"bytes","name":"data","internalType":"bytes","indexed":false},{"type":"bytes","name":"operatorData","internalType":"bytes","indexed":false}],"anonymous":false},{"type":"event","name":"OwnershipTransferred","inputs":[{"type":"address","name":"previousOwner","internalType":"address","indexed":true},{"type":"address","name":"newOwner","internalType":"address","indexed":true}],"anonymous":false},{"type":"event","name":"RelayHubChanged","inputs":[{"type":"address","name":"oldRelayHub","internalType":"address","indexed":true},{"type":"address","name":"newRelayHub","internalType":"address","indexed":true}],"anonymous":false},{"type":"event","name":"RevokedOperator","inputs":[{"type":"address","name":"operator","internalType":"address","indexed":true},{"type":"address","name":"tokenHolder","internalType":"address","indexed":true}],"anonymous":false},{"type":"event","name":"Sent","inputs":[{"type":"address","name":"operator","internalType":"address","indexed":true},{"type":"address","name":"from","internalType":"address","indexed":true},{"type":"address","name":"to","internalType":"address","indexed":true},{"type":"uint256","name":"amount","internalType":"uint256","indexed":false},{"type":"bytes","name":"data","internalType":"bytes","indexed":false},{"type":"bytes","name":"operatorData","internalType":"bytes","indexed":false}],"anonymous":false},{"type":"event","name":"SignerUpdated","inputs":[{"type":"address","name":"signer","internalType":"address","indexed":false}],"anonymous":false},{"type":"event","name":"Transfer","inputs":[{"type":"address","name":"from","internalType":"address","indexed":true},{"type":"address","name":"to","internalType":"address","indexed":true},{"type":"uint256","name":"value","internalType":"uint256","indexed":false}],"anonymous":false},{"type":"function","stateMutability":"view","payable":false,"outputs":[{"type":"uint256","name":"","internalType":"uint256"},{"type":"bytes","name":"","internalType":"bytes"}],"name":"acceptRelayedCall","inputs":[{"type":"address","name":"relay","internalType":"address"},{"type":"address","name":"from","internalType":"address"},{"type":"bytes","name":"encodedFunction","internalType":"bytes"},{"type":"uint256","name":"transactionFee","internalType":"uint256"},{"type":"uint256","name":"gasPrice","internalType":"uint256"},{"type":"uint256","name":"gasLimit","internalType":"uint256"},{"type":"uint256","name":"nonce","internalType":"uint256"},{"type":"bytes","name":"approvalData","internalType":"bytes"},{"type":"uint256","name":"","internalType":"uint256"}],"constant":true},{"type":"function","stateMutability":"nonpayable","payable":false,"outputs":[],"name":"addDefaultOperator","inputs":[{"type":"address","name":"operator","internalType":"address"}],"constant":false},{"type":"function","stateMutability":"view","payable":false,"outputs":[{"type":"uint256","name":"","internalType":"uint256"}],"name":"allowance","inputs":[{"type":"address","name":"owner","internalType":"address"},{"type":"address","name":"spender","internalType":"address"}],"constant":true},{"type":"function","stateMutability":"nonpayable","payable":false,"outputs":[{"type":"bool","name":"","internalType":"bool"}],"name":"approve","inputs":[{"type":"address","name":"spender","internalType":"address"},{"type":"uint256","name":"amount","internalType":"uint256"}],"constant":false},{"type":"function","stateMutability":"nonpayable","payable":false,"outputs":[],"name":"authorizeOperator","inputs":[{"type":"address","name":"operator","internalType":"address"}],"constant":false},{"type":"function","stateMutability":"view","payable":false,"outputs":[{"type":"uint256","name":"","internalType":"uint256"}],"name":"balanceOf","inputs":[{"type":"address","name":"account","internalType":"address"}],"constant":true},{"type":"function","stateMutability":"nonpayable","payable":false,"outputs":[],"name":"burn","inputs":[{"type":"uint256","name":"amount","internalType":"uint256"},{"type":"bytes","name":"userData","internalType":"bytes"}],"constant":false},{"type":"function","stateMutability":"pure","payable":false,"outputs":[{"type":"uint8","name":"","internalType":"uint8"}],"name":"decimals","inputs":[],"constant":true},{"type":"function","stateMutability":"nonpayable","payable":false,"outputs":[{"type":"bool","name":"","internalType":"bool"}],"name":"decreaseAllowance","inputs":[{"type":"address","name":"spender","internalType":"address"},{"type":"uint256","name":"subtractedValue","internalType":"uint256"}],"constant":false},{"type":"function","stateMutability":"view","payable":false,"outputs":[{"type":"address[]","name":"","internalType":"address[]"}],"name":"defaultOperators","inputs":[],"constant":true},{"type":"function","stateMutability":"view","payable":false,"outputs":[{"type":"address","name":"","internalType":"address"}],"name":"distributionContract","inputs":[],"constant":true},{"type":"function","stateMutability":"view","payable":false,"outputs":[{"type":"address","name":"","internalType":"address"}],"name":"getHubAddr","inputs":[],"constant":true},{"type":"function","stateMutability":"nonpayable","payable":false,"outputs":[{"type":"bool","name":"","internalType":"bool"}],"name":"increaseAllowance","inputs":[{"type":"address","name":"spender","internalType":"address"},{"type":"uint256","name":"addedValue","internalType":"uint256"}],"constant":false},{"type":"function","stateMutability":"nonpayable","payable":false,"outputs":[],"name":"initialize","inputs":[{"type":"address","name":"owner_","internalType":"address"},{"type":"address","name":"gsnApprover_","internalType":"address"},{"type":"address","name":"distributionContract_","internalType":"address"},{"type":"string","name":"subreddit_","internalType":"string"},{"type":"string","name":"name_","internalType":"string"},{"type":"string","name":"symbol_","internalType":"string"},{"type":"address[]","name":"defaultOperators_","internalType":"address[]"}],"constant":false},{"type":"function","stateMutability":"nonpayable","payable":false,"outputs":[],"name":"initialize","inputs":[],"constant":false},{"type":"function","stateMutability":"nonpayable","payable":false,"outputs":[],"name":"initialize","inputs":[{"type":"address","name":"trustedSigner","internalType":"address"}],"constant":false},{"type":"function","stateMutability":"view","payable":false,"outputs":[{"type":"bool","name":"","internalType":"bool"}],"name":"isOperatorFor","inputs":[{"type":"address","name":"operator","internalType":"address"},{"type":"address","name":"tokenHolder","internalType":"address"}],"constant":true},{"type":"function","stateMutability":"view","payable":false,"outputs":[{"type":"bool","name":"","internalType":"bool"}],"name":"isOwner","inputs":[],"constant":true},{"type":"function","stateMutability":"nonpayable","payable":false,"outputs":[],"name":"mint","inputs":[{"type":"address","name":"operator","internalType":"address"},{"type":"address","name":"account","internalType":"address"},{"type":"uint256","name":"amount","internalType":"uint256"},{"type":"bytes","name":"userData","internalType":"bytes"},{"type":"bytes","name":"operatorData","internalType":"bytes"}],"constant":false},{"type":"function","stateMutability":"view","payable":false,"outputs":[{"type":"string","name":"","internalType":"string"}],"name":"name","inputs":[],"constant":true},{"type":"function","stateMutability":"nonpayable","payable":false,"outputs":[],"name":"operatorBurn","inputs":[{"type":"address","name":"account","internalType":"address"},{"type":"uint256","name":"amount","internalType":"uint256"},{"type":"bytes","name":"data","internalType":"bytes"},{"type":"bytes","name":"operatorData","internalType":"bytes"}],"constant":false},{"type":"function","stateMutability":"nonpayable","payable":false,"outputs":[],"name":"operatorSend","inputs":[{"type":"address","name":"sender","internalType":"address"},{"type":"address","name":"recipient","internalType":"address"},{"type":"uint256","name":"amount","internalType":"uint256"},{"type":"bytes","name":"userData","internalType":"bytes"},{"type":"bytes","name":"operatorData","internalType":"bytes"}],"constant":false},{"type":"function","stateMutability":"view","payable":false,"outputs":[{"type":"address","name":"","internalType":"address"}],"name":"owner","inputs":[],"constant":true},{"type":"function","stateMutability":"nonpayable","payable":false,"outputs":[],"name":"postRelayedCall","inputs":[{"type":"bytes","name":"context","internalType":"bytes"},{"type":"bool","name":"success","internalType":"bool"},{"type":"uint256","name":"actualCharge","internalType":"uint256"},{"type":"bytes32","name":"preRetVal","internalType":"bytes32"}],"constant":false},{"type":"function","stateMutability":"nonpayable","payable":false,"outputs":[{"type":"bytes32","name":"","internalType":"bytes32"}],"name":"preRelayedCall","inputs":[{"type":"bytes","name":"context","internalType":"bytes"}],"constant":false},{"type":"function","stateMutability":"view","payable":false,"outputs":[{"type":"string","name":"","internalType":"string"}],"name":"relayHubVersion","inputs":[],"constant":true},{"type":"function","stateMutability":"nonpayable","payable":false,"outputs":[],"name":"removeDefaultOperator","inputs":[{"type":"address","name":"operator","internalType":"address"}],"constant":false},{"type":"function","stateMutability":"nonpayable","payable":false,"outputs":[],"name":"renounceOwnership","inputs":[],"constant":false},{"type":"function","stateMutability":"nonpayable","payable":false,"outputs":[],"name":"revokeOperator","inputs":[{"type":"address","name":"operator","internalType":"address"}],"constant":false},{"type":"function","stateMutability":"nonpayable","payable":false,"outputs":[],"name":"setDefaultRelayHub","inputs":[],"constant":false},{"type":"function","stateMutability":"view","payable":false,"outputs":[{"type":"string","name":"","internalType":"string"}],"name":"subreddit","inputs":[],"constant":true},{"type":"function","stateMutability":"view","payable":false,"outputs":[{"type":"string","name":"","internalType":"string"}],"name":"symbol","inputs":[],"constant":true},{"type":"function","stateMutability":"view","payable":false,"outputs":[{"type":"uint256","name":"","internalType":"uint256"}],"name":"totalSupply","inputs":[],"constant":true},{"type":"function","stateMutability":"nonpayable","payable":false,"outputs":[{"type":"bool","name":"","internalType":"bool"}],"name":"transfer","inputs":[{"type":"address","name":"recipient","internalType":"address"},{"type":"uint256","name":"amount","internalType":"uint256"}],"constant":false},{"type":"function","stateMutability":"nonpayable","payable":false,"outputs":[{"type":"bool","name":"","internalType":"bool"}],"name":"transferFrom","inputs":[{"type":"address","name":"sender","internalType":"address"},{"type":"address","name":"recipient","internalType":"address"},{"type":"uint256","name":"amount","internalType":"uint256"}],"constant":false},{"type":"function","stateMutability":"nonpayable","payable":false,"outputs":[],"name":"transferOwnership","inputs":[{"type":"address","name":"newOwner","internalType":"address"}],"constant":false},{"type":"function","stateMutability":"nonpayable","payable":false,"outputs":[],"name":"updateDistributionContract","inputs":[{"type":"address","name":"distributionContract_","internalType":"address"}],"constant":false},{"type":"function","stateMutability":"nonpayable","payable":false,"outputs":[],"name":"updateGSNApprover","inputs":[{"type":"address","name":"gsnApprover","internalType":"address"}],"constant":false}];
-const subredditPointsContract = new web3.eth.Contract(subredditPointsABI, process.env.POINTS_CONTRACT);
+let chainId;
+let users;
 
 main();
 
 async function main() {
   const filepath = `${__dirname}/../data/users.csv`;
-  let users = fs.readFileSync(filepath, 'utf8').split('\n');
-  const chainId = await web3.eth.getChainId();
+  users = fs.readFileSync(filepath, 'utf8').split('\n');
+  chainId = await web3.eth.getChainId();
 
-  console.log('Generate `claim` transactions...');
-  for (let i = 0; i < users.length; i++) {
-    const { account, privateKey, karma, signature } = parseUser(users[i].split(','));
-
-    // Prepare `claim` transaction
-    const claim = distributionsContract.methods.claim(0, account, karma, signature);
-    const tx = await web3.eth.accounts.signTransaction({
-      nonce: '0',
-      chainId: chainId.toString(),
-      to: process.env.DISTRIBUTIONS_CONTRACT,
-      data: claim.encodeABI(),
-      gasPrice: '0',
-      gas: 150000
-    }, privateKey);
-
-    users[i] = `${users[i]},${tx.rawTransaction}`; // append `claimTx` column after `signature` column
-
-    console.log(`  Progress: ${i+1}/${users.length}`);
-  }
-  console.log('  Done');
-
-  console.log('Generate `subscribe` transactions...');
-  for (let i = 0; i < users.length; i++) {
-    let subscribeTx = '';
-
-    if (i < constants.TOTAL_SUBSCRIBE_TRANSACTIONS) {
-      const { account, privateKey } = parseUser(users[i].split(','));
-
-      // Prepare `subscribe` transaction
-      const subscribe = subscriptionsContract.methods.subscribe(account, true);
-      const tx = await web3.eth.accounts.signTransaction({
-        nonce: '1',
-        chainId: chainId.toString(),
-        to: process.env.SUBSCRIPTIONS_CONTRACT,
-        data: subscribe.encodeABI(),
-        gasPrice: '0',
-        gas: 150000
-      }, privateKey);
-
-      subscribeTx = tx.rawTransaction;
-
-      console.log(`  Progress: ${i+1}/${constants.TOTAL_SUBSCRIBE_TRANSACTIONS}`);
-    }
-
-    users[i] = `${users[i]},${subscribeTx}`; // append `subscribeTx` column after `claimTx` column
-  }
-  console.log('  Done');
-
-  console.log('Generate `burn` transactions...');
-  for (let i = 0; i < users.length; i++) {
-    let burnTx = '';
-
-    if (i < constants.TOTAL_BURN_TRANSACTIONS) {
-      const { privateKey } = parseUser(users[i].split(','));
-
-      // Prepare `burn` transaction
-      const burn = subredditPointsContract.methods.burn(web3.utils.toWei('10'), []);
-      const tx = await web3.eth.accounts.signTransaction({
-        nonce: i < constants.TOTAL_SUBSCRIBE_TRANSACTIONS ? '2' : '1',
-        chainId: chainId.toString(),
-        to: process.env.POINTS_CONTRACT,
-        data: burn.encodeABI(),
-        gasPrice: '0',
-        gas: 50000
-      }, privateKey);
-
-      burnTx = tx.rawTransaction;
-
-      console.log(`  Progress: ${i+1}/${constants.TOTAL_BURN_TRANSACTIONS}`);
-    }
-
-    users[i] = `${users[i]},${burnTx}`; // append `burnTx` column after `subscribeTx` column
-  }
-  console.log('  Done');
-
-  console.log('Generate `transfer` transactions...');
-  const halfOfUsers = users.length / 2;
-  for (let i = 0; i < users.length; i++) {
-    const { privateKey } = parseUser(users[i].split(','));
-    const recipient = i < halfOfUsers
-      ? parseUser(users[i + halfOfUsers].split(',')).account
-      : parseUser(users[i - halfOfUsers].split(',')).account;
-
-    let nonce;
-    if (i < constants.TOTAL_SUBSCRIBE_TRANSACTIONS) {
-      nonce = '3';
-    } else if (i < constants.TOTAL_BURN_TRANSACTIONS) {
-      nonce = '2';
-    } else {
-      nonce = '1';
-    }
-
-    // Prepare `transfer` transaction
-    const transfer = subredditPointsContract.methods.transfer(recipient, web3.utils.toWei('1'));
-    const tx = await web3.eth.accounts.signTransaction({
-      nonce,
-      chainId: chainId.toString(),
-      to: process.env.POINTS_CONTRACT,
-      data: transfer.encodeABI(),
-      gasPrice: '0',
-      gas: 80000
-    }, privateKey);
-
-    users[i] = `${users[i]},${tx.rawTransaction}`; // append `transferTx` column after `burnTx` column
-
-    console.log(`  Progress: ${i+1}/${users.length}`);
-  }
-  console.log('  Done');
+  await generate('claim');
+  await generate('subscribe');
+  await generate('burn');
+  await generate('transfer');
 
   fs.writeFileSync(filepath, users.join('\n'), 'utf8');
 
   process.exit();
 }
 
-function parseUser(user) {
-  return {
-    account: user[0],
-    privateKey: user[1],
-    karma: user[2],
-    signature: user[3]
+async function generate(type) {
+  let results = [];
+  let resultsReceived = 0;
+  const maxThreads = os.cpus().length;
+
+  let length = users.length;
+  if (type == 'subscribe') {
+    length = constants.TOTAL_SUBSCRIBE_TRANSACTIONS;
+  } else if (type == 'burn') {
+    length = constants.TOTAL_BURN_TRANSACTIONS;
   }
+
+  console.log(`Generate '${type}' transactions...`);
+  for (let i = 0; i < maxThreads; i++) {
+    const thread = cp.fork(`${__dirname}/generate-txs-child.js`);
+    thread.send({
+      i,
+      type,
+      users,
+      start: Math.floor(length * i / maxThreads),
+      end: Math.floor(length * (i+1) / maxThreads),
+      chainId: chainId.toString()
+    });
+    thread.on('message', m => {
+      results[m.i] = m.txs;
+      thread.disconnect();
+      resultsReceived++;
+    });
+  }
+  while (resultsReceived < maxThreads) {
+    await sleep(10);
+  }
+  let u = 0;
+  let totalTxLength = 0;
+  for (let i = 0; i < maxThreads; i++) {
+    const txs = results[i];
+    totalTxLength += txs.length;
+    for (let t = 0; t < txs.length; t++, u++) {
+      users[u] = `${users[u]},${txs[t]}`; // append a column
+    }
+  }
+  assert(totalTxLength === length);
+  for (; u < users.length; u++) {
+    users[u] = `${users[u]},`; // append an empty column
+  }
+  console.log('  Done');
+}
+
+function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
 }
