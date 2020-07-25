@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "description": "Reddit scaling demo",
   "scripts": {
+    "continuous": "node scripts/continuous.js",
     "deploy": "node scripts/deploy.js",
     "generate-users": "node scripts/generate-users.js",
     "generate-txs": "node scripts/generate-txs.js",

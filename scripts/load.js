@@ -325,8 +325,8 @@ async function handleReceipts() {
           try {
             let p = subredditPointsContract.methods.balanceOf(userAddress).call();
             p.catch(() => {});
-            const balance = await Timeout.wrap(p, 10000, 'timeout');
-            claimed = ('0' !== balance);
+            const balance = new BN(await Timeout.wrap(p, 10000, 'timeout'));
+            claimed = balance.gt(new BN(constants.TRANSFER_AMOUNT));
           } catch (e) {
             log(`  Cannot get user balance for ${userAddress}. Error: ${e.message}`);
             if (t < maxTries && !interruptReceipts) {

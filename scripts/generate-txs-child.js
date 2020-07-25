@@ -82,7 +82,7 @@ process.on('message', async (task) => {
         nonce = '1';
       }
 
-      const transfer = subredditPointsContract.methods.transfer(recipient, web3.utils.toWei('1'));
+      const transfer = subredditPointsContract.methods.transfer(recipient, constants.TRANSFER_AMOUNT);
       const tx = await web3.eth.accounts.signTransaction({
         nonce,
         chainId: task.chainId,
