@@ -32,6 +32,7 @@ let limitPasses = 1; // how many passes allowed. 0 for unlimited passes
 let limitReceiptQueue = 200; // how many receipts in queue allowed
 let offset = 0; // starting position
 let passesPerformed = 0;
+let startBlock;
 let startTimestamp;
 let users = [];
 let txs = [];
@@ -39,6 +40,7 @@ let sendingFinished = false;
 let receiptsFinished = false;
 let interrupt = false;
 let interruptReceipts = false;
+let pause = false;
 let successCount = 0;
 let revertCount = 0;
 let errorCount = 0;
@@ -66,6 +68,7 @@ async function main() {
   program.option('-i, --interval <number>', 'seconds between passes', onePassInterval);
   program.option('-q, --queue-limit <number>', 'receipt queue max size. 0 to ignore receipts', limitReceiptQueue);
   program.option('-o, --offset <number>', 'starting position in users.csv', offset);
+  program.option('-f, --prevent-overflow', 'prevents tx queue overflow. Ignored unless --queue-limit is zero');
   program.option('-s, --stat', 'shows how many txs of each type were sent (calculates Y/N flags from users.csv)');
   program.parse(process.argv);
 
@@ -109,13 +112,22 @@ async function main() {
 
   csvLoad();
 
+  startBlock = await web3.eth.getBlockNumber();
   startTimestamp = process.hrtime();
 
-  // Start receipts handling thread
+  console.log(`START BLOCK: ${startBlock}`);
+
   if (limitReceiptQueue > 0) {
+    // Start receipts handling thread
     setTimeout(handleReceipts, 0);
   } else {
     receiptsFinished = true;
+
+    if (program.preventOverflow) {
+      // Start blocks handling thread
+      // to prevent tx queue overflow
+      setTimeout(preventOverflow, 0);
+    }
   }
   
   // Sending transactions
@@ -201,6 +213,10 @@ async function sendTXs(i, maxIterations) {
     while (receiptQueue.getLength() > limitReceiptQueue && !interrupt) {
       await sleep(10);
     }
+  } else {
+    while (pause && !interrupt) {
+      await sleep(1);
+    }
   }
 
   if (!interrupt) {
@@ -271,6 +287,33 @@ async function sendTXs(i, maxIterations) {
   await sleep(onePassInterval * 1000);
 
   return true;
+}
+
+async function preventOverflow() {
+  let lastKnownBlock = 0;
+  let txsMined = 0;
+
+  while (true) {
+    const currentBlock = await web3.eth.getBlockNumber();
+
+    if (lastKnownBlock < currentBlock) {
+      if (lastKnownBlock == 0) {
+        lastKnownBlock = startBlock - 1;
+      }
+      for (let b = lastKnownBlock + 1; b <= currentBlock; b++) {
+        txsMined += await web3.eth.getBlockTransactionCount(b);
+        const txQueueSize = successCount - txsMined;
+        if (txQueueSize > onePassTxLimit * 3) {
+          pause = true;
+        } else if (txQueueSize <= onePassTxLimit) {
+          pause = false;
+        }
+      }
+      lastKnownBlock = currentBlock;
+    }
+
+    await sleep(50);
+  }
 }
 
 async function handleReceipts() {
