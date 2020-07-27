@@ -303,7 +303,7 @@ async function preventOverflow() {
       for (let b = lastKnownBlock + 1; b <= currentBlock; b++) {
         txsMined += await web3.eth.getBlockTransactionCount(b);
         const txQueueSize = successCount - txsMined;
-        if (txQueueSize > onePassTxLimit * 3) {
+        if (txQueueSize >= onePassTxLimit * 2) {
           pause = true;
         } else if (txQueueSize <= onePassTxLimit) {
           pause = false;
