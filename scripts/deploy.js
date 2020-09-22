@@ -164,15 +164,17 @@ async function signAndDeploy(contractName, constructorArguments) {
 }
 
 async function signAndSend(method, to) {
+  const gasPrice = web3.utils.toWei(process.env.GAS_PRICE || '0', 'gwei');
+
   const estimateGas = await method.estimateGas({
     from: owner,
-    gasPrice: '0'
+    gasPrice
   });
 
   const signedTxData = await ownerAccount.signTransaction({
     to,
     data: method.encodeABI(),
-    gasPrice: '0',
+    gasPrice,
     gas: Math.trunc(estimateGas * 1.2)
   });
 

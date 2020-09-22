@@ -24,7 +24,7 @@ In addition, there are several scripts in the `scripts` directory which automate
     - `75,000` calls to the [`SubredditPoints.burn`](https://github.com/xdaichain/reddit-scaling-demo/blob/996b164db971463447f761c77012eef2152af4dd/contracts/SubredditPoints_v0.sol#L1640) function.
     - `100,000` calls to the [`SubredditPoints.transfer`](https://github.com/xdaichain/reddit-scaling-demo/blob/996b164db971463447f761c77012eef2152af4dd/contracts/SubredditPoints_v0.sol#L397) function.
 
-    All transactions will be performed with a zero gas price, so users don't need to have positive balances on the xDai chain.
+    All transactions will be performed with a zero gas price (if `GAS_PRICE` env variable is undefined), so users don't need to have positive balances on the xDai chain.
 
 4. Perform the generated calls loading the chain.
 
@@ -52,6 +52,7 @@ Edit the `.env` file and fill in the following variables:
 - `SHARED_OWNER_REDDIT` - account representing Reddit's shared owner (receives 20% of tokens when starting a new round).
 - `SHARED_OWNER_RESERVE` - account representing a reserve (receives 20% of tokens when starting a new round).
 - `SHARED_OWNER_MODERATORS` - account representing moderators (receives 10% of tokens when starting a new round).
+- `GAS_PRICE` - gas price for the transactions, GWei (zero by default).
 - `SUBREDDIT` - subreddit name served by these contracts. `TestSubreddit` by default.
 - `NAME` - subreddit points token name. `TESTMOON` by default.
 - `SYMBOL` - subreddit points token symbol. `TMOON` by default.
@@ -127,6 +128,8 @@ Each transaction is signed by the `privateKey` of the corresponding user (taken 
 After this step, the `users.csv` file will be approximately 170 Mb.
 
 ## Step 6. Send load transactions
+
+_If you specified a non-zero `GAS_PRICE` env variable, prior to this step you need to send at least 0.00043 coins (for each gwei of the gas price) to each address from the `users.csv`._
 
 To launch a script for sending the generated transactions, there is `npm run load` command which accepts CLI options:
 

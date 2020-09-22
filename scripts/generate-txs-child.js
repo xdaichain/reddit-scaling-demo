@@ -14,6 +14,7 @@ const subredditPointsABI = [{"type":"event","name":"Approval","inputs":[{"type":
 const subredditPointsContract = new web3.eth.Contract(subredditPointsABI, process.env.POINTS_CONTRACT);
 
 process.on('message', async (task) => {
+  const gasPrice = web3.utils.toWei(process.env.GAS_PRICE || '0', 'gwei');
   let txs = [];
   if (task.type == 'claim') {
     for (let i = task.start; i < task.end; i++) {
@@ -24,7 +25,7 @@ process.on('message', async (task) => {
         chainId: task.chainId,
         to: process.env.DISTRIBUTIONS_CONTRACT,
         data: claim.encodeABI(),
-        gasPrice: '0',
+        gasPrice,
         gas: 150000
       }, privateKey);
       txs.push(tx.rawTransaction);
@@ -40,7 +41,7 @@ process.on('message', async (task) => {
           chainId: task.chainId,
           to: process.env.SUBSCRIPTIONS_CONTRACT,
           data: subscribe.encodeABI(),
-          gasPrice: '0',
+          gasPrice,
           gas: 150000
         }, privateKey);
         subscribeTx = tx.rawTransaction;
@@ -58,7 +59,7 @@ process.on('message', async (task) => {
           chainId: task.chainId,
           to: process.env.POINTS_CONTRACT,
           data: burn.encodeABI(),
-          gasPrice: '0',
+          gasPrice,
           gas: 50000
         }, privateKey);
         burnTx = tx.rawTransaction;
@@ -88,7 +89,7 @@ process.on('message', async (task) => {
         chainId: task.chainId,
         to: process.env.POINTS_CONTRACT,
         data: transfer.encodeABI(),
-        gasPrice: '0',
+        gasPrice,
         gas: 80000
       }, privateKey);
 
