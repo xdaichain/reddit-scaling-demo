@@ -28,7 +28,7 @@ In addition, there are several scripts in the `scripts` directory which automate
 
 4. Perform the generated calls loading the chain.
 
-This repo should used on a machine with at least 1Gb of free RAM. The scripts require sufficient RAM to handle a large CSV file containing the list of users (addresses and private keys) and their prepared transactions. To maintain simplicity, we did not implement a working DB for this demo. 
+This repo should be used on a machine with at least 1Gb of free RAM. The scripts require sufficient RAM to handle a large CSV file containing the list of users (addresses and private keys) and their prepared transactions. To maintain simplicity, we did not implement a working DB for this demo. 
 
 
 ## Step 1. Configure and prepare admin and owner keys and addresses
@@ -43,7 +43,7 @@ Edit the `.env` file and fill in the following variables:
 
 - `RPC` - points to the chain RPC URL. It is set to `https://dai.poa.network` by default.
 - `IPC` - points to the local IPC path. It is used instead of RPC if not empty.
-- `PROXY_ADMIN` - Proxy Admin address used when deploying upgradable Reddit contracts (passed to the constructor of the `AdminUpgradeabilityProxy` contract). This address won't be used during testing but the key should be known if we decide to change something in the Reddit contracts (their implementations).
+- `PROXY_ADMIN` - Proxy Admin address used when deploying upgradable Reddit contracts (passed to the constructor of the `AdminUpgradeabilityProxy` contract). This address won't be used during testing but the key should be known if we decide to change something in the Reddit contracts (their implementations). Should differ from the other addresses below.
 - `OWNER` - account which deploys and initializes all the contracts. The owner has rights to call some functions in `SubredditPoints, Distributions, Subscriptions` and change configurations.
 - `OWNER_KEY` -  `OWNER`'s private key.
 - `GSN_APPROVER` - Gas Station Network account (if used). It is passed to the contracts during initialization. We will not use GSN in the demo.
@@ -52,6 +52,7 @@ Edit the `.env` file and fill in the following variables:
 - `SHARED_OWNER_REDDIT` - account representing Reddit's shared owner (receives 20% of tokens when starting a new round).
 - `SHARED_OWNER_RESERVE` - account representing a reserve (receives 20% of tokens when starting a new round).
 - `SHARED_OWNER_MODERATORS` - account representing moderators (receives 10% of tokens when starting a new round).
+- `MULTISENDER_KEY` - a private key of the address which will perform `npm run multisend` (see step 6 below).
 - `GAS_PRICE` - gas price for the transactions, GWei (zero by default).
 - `SUBREDDIT` - subreddit name served by these contracts. `TestSubreddit` by default.
 - `NAME` - subreddit points token name. `TESTMOON` by default.
@@ -90,7 +91,7 @@ This will deploy and initialize the contracts and write their proxy addresses to
 
 Note that the SubredditPoints contract has a [`decimals()`](https://github.com/xdaichain/reddit-scaling-demo/blob/996b164db971463447f761c77012eef2152af4dd/contracts/SubredditPoints_v0.sol#L1762-L1764) public getter returning 18, meaning that the test points (tokens) have 18 decimals like Ethereum.
 
-## Step 4. Enable zero gas price on the xDai chain
+## Step 4 (optional). Enable zero gas price on the xDai chain
 
 _The scripts contained in this repo can be used on another xDai-like chain which has zero gas price transactions enabled by default (for example, the test `qDai` chain). Skip this step in this case._
 
@@ -127,9 +128,37 @@ Each transaction is signed by the `privateKey` of the corresponding user (taken 
 
 After this step, the `users.csv` file will be approximately 170 Mb.
 
-## Step 6. Send load transactions
+## Step 6 (optional). Send coins to the generated addresses
 
-_If you specified a non-zero `GAS_PRICE` env variable, prior to this step you need to send at least 0.00043 coins (for each gwei of the gas price) to each address from the `users.csv`._
+If the tested network doesn't support zero gas prices (i.e. you defined a non-zero `GAS_PRICE` env variable in the step 1), the test addresses for the load test should have some coins on their balances. For gas price of 1 GWei there should be at least 0.00043 coins on each of 100 000 addresses in `users.csv` to perform the load tests successfully.
+
+To send coins to those addresses, make sure you defined the `MULTISENDER_KEY` env variable in `.env`. This is a private key of the address which holds the coins to be sent to the test addresses.
+
+To do the sending, perform the following command:
+
+```bash
+$ npm run multisend
+```
+
+It will launch the script which will calculate an average amount of coins needed to be sent to each test address and then distribute the amounts. The average amount will be calculated based on the `GAS_PRICE` env variable. The amount can also be defined using the CLI option:
+
+```bash
+$ npm run multisend -- --amount [amount]
+```
+
+For example:
+
+```bash
+$ npm run multisend -- --amount 0.00086
+```
+
+The script will distribute amounts in batches (100 addresses in a batch by default). The size of the batch can be defined by the `--batch` CLI option.
+
+The `multisend` script doesn't send the amount to an address if the address balance is greater or equal to the amount.
+
+## Step 7. Send load transactions
+
+_If you specified a non-zero `GAS_PRICE` env variable on the step 1, you first need to go through the step 6._
 
 To launch a script for sending the generated transactions, there is `npm run load` command which accepts CLI options:
 
