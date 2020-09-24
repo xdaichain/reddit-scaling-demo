@@ -4,9 +4,7 @@ const assert = require('assert');
 const Timeout = require('await-timeout');
 const { program } = require('commander');
 const constants = require('./constants');
-const http = require('http');
 const Queue = require('./queue');
-const { URL } = require('url');
 const Web3 = require('web3');
 const fs = require('fs');
 const net = require('net');
@@ -45,18 +43,6 @@ let successCount = 0;
 let revertCount = 0;
 let errorCount = 0;
 let csvSavePromise = null;
-
-let httpOptions;
-if (process.env.RPC) {
-  const rpcUrl = new URL(process.env.RPC);
-  httpOptions = {
-    host: rpcUrl.hostname,
-    path: rpcUrl.pathname,
-    port: rpcUrl.port,
-    method: 'POST',
-    headers: {'Content-Type': 'application/json'}
-  };
-}
 
 main();
 
@@ -140,6 +126,9 @@ async function main() {
     await sleep(10);
   }
 
+  const endBlock = await web3.eth.getBlockNumber();
+  log(`END BLOCK: ${endBlock}`, true);
+
   // All jobs are finished. Ensure csv file saving finished
   if (csvSavePromise !== null) {
     await csvSavePromise;
@@ -221,7 +210,7 @@ async function sendTXs(i, maxIterations) {
 
   if (!interrupt) {
     log(`Sending ${txs.length} '${program.type}' transaction(s)...`, true);
-    let batch = [];
+
     let ipcSocket = null;
     if (limitReceiptQueue == 0 && process.env.IPC) {
       log(`  Connecting to IPC...`);
@@ -230,6 +219,10 @@ async function sendTXs(i, maxIterations) {
       });
       log(`  Connected successfully`);
     }
+
+    const batchMaxSize = 100;
+    let batch = ipcSocket ? [] : new web3.BatchRequest();
+    let batchPromises = [];
     for (let t = 0; t < txs.length; t++) {
       const userIndex = txs[t].i;
       if (limitReceiptQueue > 0) {
@@ -237,32 +230,46 @@ async function sendTXs(i, maxIterations) {
       	p.catch(() => {});
         receiptQueue.enqueue({ i: userIndex, p });
       } else {
-        batch.push(`{"jsonrpc":"2.0","method":"eth_sendRawTransaction","params":["${txs[t].tx}"],"id":${batch.length}}`);
-        if (batch.length >= 20 || t == txs.length - 1) {
-          const requestBody = `[${batch.join(',')}]`;
-          await new Promise(resolve => {
-            if (ipcSocket) {
+        if (ipcSocket) {
+          batch.push(`{"jsonrpc":"2.0","method":"eth_sendRawTransaction","params":["${txs[t].tx}"],"id":${batch.length}}`);
+          if (batch.length >= batchMaxSize || t == txs.length - 1) {
+            const requestBody = `[${batch.join(',')}]`;
+            await new Promise(resolve => {
               ipcSocket.write(requestBody, resolve);
-            } else {
-              let req = http.request(httpOptions);
-              req.write(requestBody, 'utf8', () => {
-                req.socket.end();
-                req = null;
-                resolve();
-              });
-              req.end();
+            });
+            batch = [];
+          }
+          switch (program.type) {
+          case 'claim': setUserClaimed(userIndex, true); break;
+          case 'subscribe': setUserSubscribed(userIndex, true); break;
+          case 'burn': setUserBurned(userIndex, true); break;
+          case 'transfer': setUserTransferred(userIndex, true); break;
+          }
+        } else {
+          batchPromises.push(new Promise((resolve, reject) => {
+            batch.add(web3.eth.sendSignedTransaction.request(txs[t].tx, (err, hash) => {
+              if (err) reject(err);
+              else resolve(userIndex);
+            }));
+          }));
+          if (batchPromises.length >= batchMaxSize || t == txs.length - 1) {
+            await batch.execute();
+            const results = await Promise.all(batchPromises);
+            for (let r = 0; r < results.length; r++) {
+              switch (program.type) {
+              case 'claim': setUserClaimed(results[r], true); break;
+              case 'subscribe': setUserSubscribed(results[r], true); break;
+              case 'burn': setUserBurned(results[r], true); break;
+              case 'transfer': setUserTransferred(results[r], true); break;
+              }
             }
-          });
-          batch = [];
-        }
-        switch (program.type) {
-        case 'claim': setUserClaimed(userIndex, true); break;
-        case 'subscribe': setUserSubscribed(userIndex, true); break;
-        case 'burn': setUserBurned(userIndex, true); break;
-        case 'transfer': setUserTransferred(userIndex, true); break;
+            batch = new web3.BatchRequest();
+            batchPromises = [];
+          }
         }
       }
     }
+
     if (ipcSocket) {
       ipcSocket.end();
     }

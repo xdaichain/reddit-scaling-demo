@@ -258,13 +258,11 @@ This method is activated when `--queue-limit` CLI option is set to zero and is u
 
 Since there is a very small amount of time between blocks, we skip receipts handling for the transactions. The RPC can significantly delay responses due to a large amount of transactions per second.
 
-As with the first approach, the load script reads transactions in chunks (which size is defined by `--tx-limit` CLI option) from the `users.csv` and sends them to the chain using `eth_sendRawTransaction` JSON RPC request directly (without using web3's `sendSignedTransaction`). This occurs every `--interval` seconds (1 second in case of `qDai`) until the number of `--passes` is reached or `SIGINT` signal is received.
+As with the first approach, the load script reads transactions in chunks (which size is defined by `--tx-limit` CLI option) from the `users.csv` and sends them to the chain using `eth_sendRawTransaction` JSON RPC request (using web3's `sendSignedTransaction`). This occurs every `--interval` seconds (1 second in case of `qDai`) until the number of `--passes` is reached or `SIGINT` signal is received.
 
 This approach only uses one thread (which only sends transactions and doesn't receive receipts). After a transaction is sent to the chain, the script immediately marks it as `Y` in the corresponding column in the CSV.
 
-With this approach we send the `eth_sendRawTransaction` request directly rather than `web3.eth.sendSignedTransaction` despite the fact that both send the same information. The difference is that `web3.eth.sendSignedTransaction` contains many handlers and consumes a good deal of CPU/RAM when there are a lot of transactions (and it waits for the transaction hash before marking the sent transaction as `sent`, using resources allocated for tx sending).
-
-To directly send `eth_sendRawTransaction`, we use an embedded `http` module of `Node.js`(if IPC is not used), or a socket connection (if IPC is used). This allows us to send a request without waiting for the response (we call the [`socket.end()`](https://nodejs.org/docs/latest-v8.x/api/net.html#net_socket_end_data_encoding) function). `eth_sendRawTransaction` is sent [wrapped to a promise](https://github.com/xdaichain/reddit-scaling-demo/blob/28034feb9f0438aa208bcb572b2fdfc9d7623023/scripts/load.js#L218-L230) which resolves as soon as the request is written to the chain.
+To send batch of `eth_sendRawTransaction` calls, we use web3's `sendSignedTransaction` along with `web3.BatchRequest` (if IPC is not used), or a socket connection (if IPC is used).
 
 ## Emitted events
 
