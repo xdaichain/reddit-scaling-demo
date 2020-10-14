@@ -37,16 +37,33 @@ async function main() {
   } catch(e) {
   }
   while (lines.length < totalAddresses) {
-    const acc = web3.eth.accounts.create();
-    const line = `${acc.address},${acc.privateKey}`;
-    const nonce = await web3.eth.getTransactionCount(acc.address);
-    if (nonce === 0 && !addressGenerated.hasOwnProperty(acc.address)) {
-      lines.push(line);
-      addressGenerated[acc.address] = true;
-      console.log(`  Progress: ${lines.length}/${totalAddresses}`);
+    const accounts = [];
+    const promises = [];
+    const batchReq = new web3.BatchRequest();
+    const maxBatchSize = 100;
+    const batchSize = Math.min(totalAddresses - lines.length, maxBatchSize);
+    for (let i = 0; i < batchSize; i++) {
+      const acc = web3.eth.accounts.create();
+      accounts.push(acc);
+      promises.push(new Promise((resolve, reject) => {
+        batchReq.add(web3.eth.getTransactionCount.request(acc.address, 'latest', (err, nonce) => {
+          if (err) reject(err);
+          else resolve(nonce);
+        }));
+      }));
     }
-    if (lines.length % (totalAddresses / 1000) === 0) {
-      fs.writeFileSync(tmpFilepath, lines.join('\n'), 'utf8');
+    await batchReq.execute();
+    const nonces = await Promise.all(promises);
+    for (let i = 0; i < accounts.length; i++) {
+      const acc = accounts[i];
+      if (nonces[i] === 0 && !addressGenerated.hasOwnProperty(acc.address)) {
+        lines.push(`${acc.address},${acc.privateKey}`);
+        addressGenerated[acc.address] = true;
+        console.log(`  Progress: ${lines.length}/${totalAddresses}`);
+      }
+      if (lines.length % (maxBatchSize*10) === 0) {
+        fs.writeFileSync(tmpFilepath, lines.join('\n'), 'utf8');
+      }
     }
   }
   delete addressGenerated;
