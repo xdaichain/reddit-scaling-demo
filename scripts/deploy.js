@@ -182,7 +182,11 @@ async function signAndSend(method, to) {
     signedTxData.rawTransaction
   );
 
-  assert(receipt.status === true || receipt.status === '0x1');
+  if (receipt.hasOwnProperty('status')) {
+    assert(receipt.status === true || receipt.status === '0x1');
+  } else {
+    assert(receipt.logs.length > 0 || receipt.contractAddress);
+  }
 
   return receipt;
 }
