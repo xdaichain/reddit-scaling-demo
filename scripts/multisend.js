@@ -52,6 +52,7 @@ async function main() {
   if (amount == 0) {
     amount = 0.00043 * process.env.GAS_PRICE;
   }
+  const amountWei = new BN(web3.utils.toWei(amount.toString()));
 
   // Compile Multisender contract
   const compiled = await compile(`${__dirname}/../contracts/`, 'Multisender');
@@ -62,52 +63,55 @@ async function main() {
     gasPrice: web3.utils.toWei(process.env.GAS_PRICE, 'gwei')
   });
 
-  // Calculate minimum balance for the multisender account
-  const totalAmount = web3.utils.toWei((amount * 2 * users.length).toString());
-  let deployAmount = '0';
-  if (!process.env.MULTISENDER_CONTRACT) {
-    deployAmount = web3.utils.toWei((deployEstimateGas * process.env.GAS_PRICE).toString(), 'gwei');
-  }
-  let minMultisenderBalanceNeeded = (new BN(totalAmount)).add(new BN(deployAmount)); // in wei
+  if (process.env.MULTISEND_PRECHECK_BALANCES === 'true') {
+    // Calculate minimum balance for the multisender account
+    const totalAmount = web3.utils.toWei((amount * 2 * users.length).toString());
+    let deployAmount = '0';
+    if (!process.env.MULTISENDER_CONTRACT) {
+      deployAmount = web3.utils.toWei((deployEstimateGas * process.env.GAS_PRICE).toString(), 'gwei');
+    }
+    let minMultisenderBalanceNeeded = (new BN(totalAmount)).add(new BN(deployAmount)); // in wei
 
-  // Get user balances
-  log('Get user balances...');
-  let promises = [];
-  let batchReq = new web3.BatchRequest();
-  for (let i = 0; i < users.length; i++) {
-    promises.push(new Promise((resolve, reject) => {
-      batchReq.add(web3.eth.getBalance.request(user(i).account, 'latest', (err, balance) => {
-        if (err) reject(err);
-        else resolve({ i, balance });
+    // Get user balances
+    log('Get user balances...');
+    let promises = [];
+    let batchReq = new web3.BatchRequest();
+    for (let i = 0; i < users.length; i++) {
+      promises.push(new Promise((resolve, reject) => {
+        batchReq.add(web3.eth.getBalance.request(user(i).account, 'latest', (err, balance) => {
+          if (err) reject(err);
+          else resolve({ i, balance });
+        }));
       }));
-    }));
-    if (promises.length >= 1000 || i == users.length - 1) {
-      await batchReq.execute();
-      const results = await Promise.all(promises);
-      for (let r = 0; r < results.length; r++) {
-        userBalances[results[r].i] = new BN(results[r].balance);
+      if (promises.length >= 100 || i == users.length - 1) {
+        await batchReq.execute();
+        const results = await Promise.all(promises);
+        for (let r = 0; r < results.length; r++) {
+          userBalances[results[r].i] = new BN(results[r].balance);
+        }
+        promises = [];
+        batchReq = new web3.BatchRequest();
+        log(`  Progress: ${i + 1}/${users.length} [${Math.floor((i + 1) / users.length * 100)}%]`);
       }
-      promises = [];
-      batchReq = new web3.BatchRequest();
-      log(`  Progress: ${i + 1}/${users.length} [${Math.floor((i + 1) / users.length * 100)}%]`);
     }
-  }
 
-  const amountWei = new BN(web3.utils.toWei(amount.toString()));
-  for (let i = 0; i < userBalances.length; i++) {
-    if (userBalances[i].gte(amountWei)) {
-      minMultisenderBalanceNeeded = minMultisenderBalanceNeeded.sub(amountWei.mul(new BN(2)));
+    for (let i = 0; i < userBalances.length; i++) {
+      if (userBalances[i].gte(amountWei)) {
+        minMultisenderBalanceNeeded = minMultisenderBalanceNeeded.sub(amountWei.mul(new BN(2)));
+      }
     }
-  }
 
-  const multisenderBalance = new BN(await web3.eth.getBalance(multisender));
+    const multisenderBalance = new BN(await web3.eth.getBalance(multisender));
 
-  log(`Multisender account should have at least ${web3.utils.fromWei(minMultisenderBalanceNeeded)} coins on its balance`);
-  log(`Currently it has ${web3.utils.fromWei(multisenderBalance)} coins`);
+    log(`Multisender account should have at least ${web3.utils.fromWei(minMultisenderBalanceNeeded)} coins on its balance`);
+    log(`Currently it has ${web3.utils.fromWei(multisenderBalance)} coins`);
 
-  if (multisenderBalance.lt(minMultisenderBalanceNeeded)) {
-    log(`Insufficient funds`);
-    return;
+    if (multisenderBalance.lt(minMultisenderBalanceNeeded)) {
+      log(`Insufficient funds`);
+      return;
+    }
+  } else {
+    userBalances = Array(users.length).fill(new BN(0));
   }
 
   let multisenderContract;
@@ -116,7 +120,7 @@ async function main() {
     multisenderContract = await deploy.send({ from: multisender, gas: deployEstimateGas, gasPrice: web3.utils.toWei(process.env.GAS_PRICE, 'gwei') });
     log(`  Done. Contract address: ${multisenderContract.options.address}`);
 
-    // Save proxy addresses to `.env` file
+    // Save the address to `.env` file
     const envFilePath = `${__dirname}/../.env`;
     let env = envfile.parse(fs.readFileSync(envFilePath, 'utf8'));
     env.MULTISENDER_CONTRACT = multisenderContract.options.address;
@@ -149,7 +153,7 @@ async function main() {
         value
       });
 
-      if (receipt.status) {
+      if (receipt.status || receipt.events.Success) {
         log(`  Tx ${receipt.transactionHash} succeeded. cumulativeGasUsed = ${receipt.cumulativeGasUsed}. ${web3.utils.fromWei(value)} coins have been sent totally to ${receivers.length} addresses`);
         log(`  Progress: ${i + 1}/${userBalances.length} [${Math.floor((i + 1) / userBalances.length * 100)}%]`);
       } else {

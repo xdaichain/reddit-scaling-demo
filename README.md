@@ -53,6 +53,7 @@ Edit the `.env` file and fill in the following variables:
 - `SHARED_OWNER_RESERVE` - account representing a reserve (receives 20% of tokens when starting a new round).
 - `SHARED_OWNER_MODERATORS` - account representing moderators (receives 10% of tokens when starting a new round).
 - `MULTISENDER_KEY` - a private key of the address which will perform `npm run multisend` (see step 6 below).
+- `MULTISEND_PRECHECK_BALANCES` - set to `true` if you need to precheck user balances before the multisending (to avoid sending coins to non-empty addresses).
 - `GAS_PRICE` - gas price for the transactions, GWei (zero by default).
 - `SUBREDDIT` - subreddit name served by these contracts. `TestSubreddit` by default.
 - `NAME` - subreddit points token name. `TESTMOON` by default.
