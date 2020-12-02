@@ -76,7 +76,7 @@ This creates a `users.csv` file in the `data` directory with `100,000` rows and 
 account,privateKey,karma,signature
 ```
 
-Karma of each user is generated randomly within a 150 to 400 range. The `signature` column contains a signature created by the `KARMA_SOURCE` address. These fields are needed to call the [`Distributions.claim`](https://github.com/xdaichain/reddit-scaling-demo/blob/996b164db971463447f761c77012eef2152af4dd/contracts/Distributions_v0.sol#L1931) function in `Step 6`.
+Karma of each user is generated randomly within a 150 to 400 range. The `signature` column contains a signature created by the `KARMA_SOURCE` address. These fields are needed to call the [`Distributions.claim`](https://github.com/xdaichain/reddit-scaling-demo/blob/996b164db971463447f761c77012eef2152af4dd/contracts/Distributions_v0.sol#L1931) function in `Step 7`.
 
 This step may take some time as it checks a `nonce` for each generated address (and sends the corresponding `eth_getTransactionCount` JSON RPC). If the script is interrupted (intentionally or due to a disconnection), it can be restarted and the generation process will continue from the previous known point.
 
