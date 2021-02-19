@@ -55,7 +55,7 @@ async function main() {
   program.option('-q, --queue-limit <number>', 'receipt queue max size. 0 to ignore receipts', limitReceiptQueue);
   program.option('-o, --offset <number>', 'starting position in users.csv', offset);
   program.option('-f, --prevent-overflow', 'prevents tx queue overflow. Ignored unless --queue-limit is zero');
-  program.option('-s, --stat', 'shows how many txs of each type were sent (calculates Y/N flags from users.csv)');
+  program.option('-s, --stat', 'shows how many txs of each type were sent (calculates Y/N flags from users.csv). Do not use this with -t or --type');
   program.parse(process.argv);
 
   if (program.stat) {
