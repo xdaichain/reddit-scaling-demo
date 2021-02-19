@@ -139,10 +139,10 @@ async function deploy(contractName) {
   ]);
 
   const admin = await proxy.methods.admin().call({ from: process.env.PROXY_ADMIN });
-  assert(admin == process.env.PROXY_ADMIN, `admin() does not match PROXY_ADMIN. admin(): ${admin}, PROXY_ADMIN: ${process.env.PROXY_ADMIN}`);
+  assert(admin.toLowerCase() == process.env.PROXY_ADMIN.toLowerCase(), `admin() does not match PROXY_ADMIN. admin(): ${admin}, PROXY_ADMIN: ${process.env.PROXY_ADMIN}`);
 
   const impl = await proxy.methods.implementation().call({ from: process.env.PROXY_ADMIN });
-  assert(impl == implementation.options.address, `implementation() returns incorrect address. implementation(): ${impl}, implementation.options.address = ${implementation.options.address}`);
+  assert(impl.toLowerCase() == implementation.options.address.toLowerCase(), `implementation() returns incorrect address. implementation(): ${impl}, implementation.options.address = ${implementation.options.address}`);
 
   console.log(`  Proxy address: ${proxy.options.address}`);
 
