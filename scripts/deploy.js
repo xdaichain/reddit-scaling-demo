@@ -21,7 +21,7 @@ main();
 async function main() {
   // Calc totalKarma from the CSV
   const totalKarma = getTotalKarma();
-  assert(totalKarma > 0);
+  assert(totalKarma > 0, 'Total karma should be positive');
 
   // Deploy Reddit contracts
   const pointsContract = await deploy('SubredditPoints_v0');
@@ -137,8 +137,12 @@ async function deploy(contractName) {
     process.env.PROXY_ADMIN, // proxy admin
     []
   ]);
-  assert(await proxy.methods.admin().call({ from: process.env.PROXY_ADMIN }) == process.env.PROXY_ADMIN);
-  assert(await proxy.methods.implementation().call({ from: process.env.PROXY_ADMIN }) == implementation.options.address);
+
+  const admin = await proxy.methods.admin().call({ from: process.env.PROXY_ADMIN });
+  assert(admin == process.env.PROXY_ADMIN, `admin() does not match PROXY_ADMIN. admin(): ${admin}, PROXY_ADMIN: ${process.env.PROXY_ADMIN}`);
+
+  const impl = await proxy.methods.implementation().call({ from: process.env.PROXY_ADMIN });
+  assert(impl == implementation.options.address, `implementation() returns incorrect address. implementation(): ${impl}, implementation.options.address = ${implementation.options.address}`);
 
   console.log(`  Proxy address: ${proxy.options.address}`);
 
@@ -183,9 +187,9 @@ async function signAndSend(method, to) {
   );
 
   if (receipt.hasOwnProperty('status')) {
-    assert(receipt.status === true || receipt.status === '0x1');
+    assert(receipt.status === true || receipt.status === '0x1', `Unrecognized receipt status: ${receipt.status}`);
   } else {
-    assert(receipt.logs.length > 0 || receipt.contractAddress);
+    assert(receipt.logs.length > 0 || receipt.contractAddress, `Receipt status is unknown. receipt.logs.length = ${receipt.logs.length}, receipt.contractAddress = ${receipt.contractAddress}`);
   }
 
   return receipt;
